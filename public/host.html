@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spiel der Jahudis - Dubai 3D Host</title>
+  <link rel="stylesheet" href="/css/host.css">
+</head>
+<body>
+  <div class="bg-mesh"></div>
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo-area">
+      <span style="font-size: 32px;">🌴</span>
+      <div class="logo-title">SPIEL DER JAHUDIS • DUBAI EDITION</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <button id="btn-sound-toggle" class="sound-toggle-btn" onclick="window.soundEngine.init(); window.soundEngine.play('kaching'); this.innerHTML='🔊 Sound Aktiv!'; this.classList.add('active');">
+        🔊 Sound aktivieren
+      </button>
+      <div class="room-badge" id="room-badge" style="display: none;">
+        <span class="room-code-label">Raum-Code:</span>
+        <span class="room-code-value" id="header-room-code">----</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 1. LOBBY VIEW -->
+  <main id="lobby-view" class="view active">
+    <div class="lobby-hero">
+      <div class="qr-box">
+        <img id="qr-image" src="" alt="QR Code zum Beitreten">
+        <div class="qr-hint">Mit Handy scannen</div>
+      </div>
+      <div class="join-info">
+        <h2>Mach dein Handy zum Controller!</h2>
+        <div class="join-steps">
+          <div>1. Handy-Kamera auf den QR-Code richten</div>
+          <div>2. Oder im Browser öffnen: <span id="join-url-text">http://...</span></div>
+          <div>3. Raum-Code eingeben: <span id="lobby-room-code" style="font-size: 28px;">----</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Players Lobby Grid -->
+    <div class="players-section">
+      <div class="players-title">
+        <span>👥 Beigetretene Jahudis:</span>
+        <span id="player-count">(0 Spieler)</span>
+      </div>
+      <div class="players-grid" id="lobby-players-grid">
+        <!-- Dynamic Player Cards will appear here -->
+      </div>
+    </div>
+
+    <button id="btn-start-game" class="btn-start" disabled>Spiel starten (min. 1 Spieler)</button>
+  </main>
+
+  <!-- 2. GAME VIEW (3D BOARD) -->
+  <main id="game-view" class="view">
+    <div class="turn-banner" id="turn-banner">
+      <div id="turn-text">Warte auf Zug...</div>
+      <div id="game-subtext" style="color: var(--text-muted); font-size: 15px;">Drehrad am Handy drehen!</div>
+    </div>
+
+    <!-- 3D Three.js Container -->
+    <div class="board-container" id="board-3d-container" style="width: 100%; height: 100%; position: relative;">
+      <!-- Three.js Canvas will be inserted here -->
+    </div>
+
+    <!-- Bottom Leaderboard -->
+    <div class="leaderboard-bar" id="leaderboard-bar">
+      <!-- Player score cards -->
+    </div>
+  </main>
+
+  <!-- 3. WHEEL OVERLAY -->
+  <div class="overlay" id="wheel-overlay">
+    <div class="wheel-container">
+      <div class="wheel-status-text" id="wheel-player-name">Spieler dreht am Rad...</div>
+      <div class="wheel-wrapper">
+        <div class="wheel-pointer"></div>
+        <canvas id="wheel-canvas" class="wheel-canvas" width="380" height="380"></canvas>
+        <div class="wheel-center-pin"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. ACTION CARD OVERLAY -->
+  <div class="overlay" id="action-overlay">
+    <div class="action-card" id="action-card-element">
+      <div class="card-badge">DUBAI AKTIONSSCHICKSAL</div>
+      <div class="card-icon" id="card-icon">🏙️</div>
+      <div class="card-title" id="card-title">Wolkenkratzer Kauf</div>
+      <div class="card-desc" id="card-desc">Du kaufst dir ein exklusives Penthouse im Burj Tower!</div>
+      <div class="card-rewards" id="card-rewards">
+        <span style="color: #22c55e;">+80.000 €</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Float Reactions Layer -->
+  <div id="reactions-container" style="position: fixed; inset: 0; pointer-events: none; z-index: 200;"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/three.min.js"></script>
+  <script src="/js/OrbitControls.js"></script>
+  <script src="/js/GLTFLoader.js"></script>
+  <script src="/js/audio.js"></script>
+  <script src="/js/boardData.js"></script>
+  <script src="/js/board3D.js"></script>
+  <script src="/js/host.js"></script>
+</body>
+</html>
