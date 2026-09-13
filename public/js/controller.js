@@ -458,12 +458,39 @@ function launchPhysicsSpin(initialVelocity, expectedSector = null) {
       triggerWheelTick();
     }
 
+    // Smoothly align to expected sector center during final deceleration
+    if (expectedSector && Math.abs(wheelAngularVelocity) < 0.06) {
+      const sectorIdx = CONTROLLER_WHEEL_SECTORS.findIndex(s => s.num === expectedSector.num);
+      if (sectorIdx !== -1) {
+        const arc = (Math.PI * 2) / CONTROLLER_WHEEL_SECTORS.length;
+        const targetAngle = (1.5 * Math.PI) - (sectorIdx * arc + arc / 2);
+        const mod = wheelAngle % (Math.PI * 2);
+        let diff = targetAngle - mod;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        wheelAngle += diff * 0.14 * dt;
+      }
+    }
+
     if (Math.abs(wheelAngularVelocity) > 0.0015) {
       requestAnimationFrame(step);
     } else {
       wheelAngularVelocity = 0;
       isWheelSpinning = false;
       const finalSector = expectedSector || getSelectedSector(wheelAngle);
+
+      // Lock final exact angle to sector center
+      const sectorIdx = CONTROLLER_WHEEL_SECTORS.findIndex(s => s.num === finalSector.num);
+      if (sectorIdx !== -1) {
+        const arc = (Math.PI * 2) / CONTROLLER_WHEEL_SECTORS.length;
+        const targetAngle = (1.5 * Math.PI) - (sectorIdx * arc + arc / 2);
+        const mod = wheelAngle % (Math.PI * 2);
+        let diff = targetAngle - mod;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        wheelAngle += diff;
+        drawControllerWheel(wheelAngle);
+      }
       
       if (navigator.vibrate) {
         try { navigator.vibrate([40, 40, 100]); } catch (_) {}
