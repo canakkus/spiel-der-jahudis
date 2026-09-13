@@ -132,19 +132,22 @@ class DubaiBoard3D {
     this.scene.add(continent);
 
     // ── Biome 1: Campus & Uni (North-West) ──────────────────────
-    this.buildCampusBiome(-40, 0, -32);
+    this.buildCampusBiome(-18, 0, -28);
 
-    // ── Biome 2: Downtown Metropolis (North / North-East) ────────
-    this.buildDowntownBiome(32, 0, -26);
+    // ── Biome 2: Downtown Metropolis (North-East) ───────────────
+    this.buildDowntownBiome(45, 0, -10);
 
-    // ── Biome 3: Suburbia & Family (East / South-East) ──────────
-    this.buildSuburbiaBiome(42, 0, 18);
+    // ── Biome 3: Suburbia & Family (Center-East to Center) ──────
+    this.buildSuburbiaBiome(10, 0, 10);
 
-    // ── Biome 4: Casino & Crypto Dunes (Center / West) ──────────
-    this.buildCasinoBiome(-16, 0, 14);
+    // ── Biome 4: Casino & Crypto Dunes (South-West) ─────────────
+    this.buildCasinoBiome(-35, 0, 20);
 
-    // ── Biome 5: Retirement Beach Paradise (South / South-West) ─
-    this.buildBeachBiome(16, 0, 42);
+    // ── Biome 5: Retirement Beach Paradise (South / South-East) ─
+    this.buildBeachBiome(6, 0, 32);
+
+    // ── 🎡 Iconic 3D Spinner Wheel (Hasbro Style Centerpiece) ───
+    this.build3DSpinnerWheel(0, 1.2, -4);
   }
 
   // ── 🎓 BIOME 1: Campus & Uni ──────────────────────────────────
@@ -359,6 +362,133 @@ class DubaiBoard3D {
     this.scene.add(archGroup);
   }
 
+  // ── 🎡 3D Physical Spinner Wheel (Spiel des Lebens Centerpiece) ──
+  build3DSpinnerWheel(cx, cy, cz) {
+    const group = new THREE.Group();
+    group.position.set(cx, cy, cz);
+
+    // 1. Molded plastic base (white fluted podium with gold trim)
+    const baseGeo = new THREE.CylinderGeometry(7.2, 8.0, 1.6, 32);
+    const baseMat = new THREE.MeshStandardMaterial({
+      color: 0xf8fafc,
+      roughness: 0.2,
+      metalness: 0.15
+    });
+    const base = new THREE.Mesh(baseGeo, baseMat);
+    base.position.y = 0.8;
+    base.castShadow = true;
+    base.receiveShadow = true;
+    group.add(base);
+
+    // Golden rim ring
+    const rimGeo = new THREE.TorusGeometry(7.4, 0.35, 16, 32);
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.92, roughness: 0.15 });
+    const rim = new THREE.Mesh(rimGeo, rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 1.6;
+    group.add(rim);
+
+    // 2. The Rotating Wheel Rotor
+    const wheelRotor = new THREE.Group();
+    wheelRotor.position.y = 1.65;
+
+    const sectorColors = [
+      0xef4444, 0xf97316, 0xf59e0b, 0x10b981, 0x06b6d4,
+      0x3b82f6, 0x6366f1, 0xa855f7, 0xec4899, 0xeab308
+    ];
+    const numSectors = 10;
+    const arc = (Math.PI * 2) / numSectors;
+
+    for (let i = 0; i < numSectors; i++) {
+      const wedgeGeo = new THREE.CylinderGeometry(7.0, 7.0, 0.35, 16, 1, false, i * arc, arc);
+      const wedgeMat = new THREE.MeshStandardMaterial({
+        color: sectorColors[i],
+        roughness: 0.35,
+        metalness: 0.25
+      });
+      const wedge = new THREE.Mesh(wedgeGeo, wedgeMat);
+      wedge.castShadow = true;
+      wheelRotor.add(wedge);
+
+      // White Peg studs along sector edges
+      const pegGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.6, 8);
+      const pegMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.85, roughness: 0.1 });
+      const peg = new THREE.Mesh(pegGeo, pegMat);
+      const pegAngle = i * arc;
+      peg.position.set(Math.cos(pegAngle) * 6.4, 0.35, Math.sin(pegAngle) * 6.4);
+      wheelRotor.add(peg);
+    }
+
+    // Center Chrome Dome
+    const domeGeo = new THREE.SphereGeometry(2.2, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    const domeMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      metalness: 0.85,
+      roughness: 0.2
+    });
+    const dome = new THREE.Mesh(domeGeo, domeMat);
+    dome.position.y = 0.2;
+    wheelRotor.add(dome);
+
+    // Center Gold Coin emblem
+    const emblemGeo = new THREE.CylinderGeometry(1.2, 1.2, 0.3, 24);
+    const emblemMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.95, roughness: 0.1 });
+    const emblem = new THREE.Mesh(emblemGeo, emblemMat);
+    emblem.position.y = 2.25;
+    wheelRotor.add(emblem);
+
+    group.add(wheelRotor);
+    this.boardWheelRotor = wheelRotor;
+
+    // 3. Pointer Needle (Flexes dynamically when spinning)
+    const pointerGroup = new THREE.Group();
+    pointerGroup.position.set(0, 2.1, 6.7);
+    const needleGeo = new THREE.ConeGeometry(0.55, 1.9, 4);
+    const needleMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.7, roughness: 0.2 });
+    const needle = new THREE.Mesh(needleGeo, needleMat);
+    needle.rotation.x = Math.PI / 2;
+    needle.position.z = -0.75;
+    pointerGroup.add(needle);
+    group.add(pointerGroup);
+    this.boardWheelPointer = pointerGroup;
+
+    this.scene.add(group);
+  }
+
+  spinBoardWheel(spinValue, velocity = 1) {
+    if (!this.boardWheelRotor) return;
+    const numSectors = 10;
+    const arc = (Math.PI * 2) / numSectors;
+    const sectorIndex = (spinValue - 1 + numSectors) % numSectors;
+    const targetAngle = -sectorIndex * arc;
+    const rotations = Math.min(6, Math.max(3, Math.round(velocity * 1.3)));
+    const finalAngle = this.boardWheelRotor.rotation.y + rotations * Math.PI * 2 + targetAngle;
+    const duration = Math.min(3200, Math.max(1800, 1600 + velocity * 200));
+    const startAngle = this.boardWheelRotor.rotation.y;
+    const startTime = performance.now();
+
+    const anim = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      this.boardWheelRotor.rotation.y = startAngle + ease * (finalAngle - startAngle);
+
+      // Realistic needle flap / tick
+      if (this.boardWheelPointer) {
+        const tickVal = Math.sin(this.boardWheelRotor.rotation.y * 10);
+        this.boardWheelPointer.rotation.x = (Math.PI / 2) + Math.max(0, tickVal) * 0.28;
+      }
+
+      if (progress < 1) {
+        requestAnimationFrame(anim);
+      } else {
+        if (this.boardWheelPointer) this.boardWheelPointer.rotation.x = Math.PI / 2;
+        this.spawnConfetti(new THREE.Vector3(0, 4, -4));
+      }
+    };
+    requestAnimationFrame(anim);
+  }
+
   // ── 3D Asset Helpers ──────────────────────────────────────────
   createSkyscraper(x, y, z, width, height, color, glowColor) {
     const group = new THREE.Group();
@@ -554,8 +684,9 @@ class DubaiBoard3D {
     const len = dir.length();
     const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
 
-    // Dark Road Tarmac
-    const roadGeo = new THREE.BoxGeometry(2.8, 0.22, len);
+    // 1. Dark Road Asphalt Ribbon
+    const roadWidth = 3.2;
+    const roadGeo = new THREE.BoxGeometry(roadWidth, 0.22, len);
     const roadMat = new THREE.MeshStandardMaterial({
       color: 0x1e293b,
       roughness: 0.65,
@@ -570,8 +701,47 @@ class DubaiBoard3D {
     road.receiveShadow = true;
     this.scene.add(road);
 
-    // Yellow Dashed Centerline
-    const lineGeo = new THREE.BoxGeometry(0.28, 0.24, len * 0.78);
+    // 2. Beveled Sidewalk Curbs (Left & Right)
+    const curbWidth = 0.26;
+    const curbGeo = new THREE.BoxGeometry(curbWidth, 0.32, len);
+    const curbMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5, metalness: 0.3 });
+
+    const leftCurb = new THREE.Mesh(curbGeo, curbMat);
+    leftCurb.position.copy(mid);
+    leftCurb.position.y = p1.y - 0.02;
+    leftCurb.lookAt(lookTarget);
+    leftCurb.translateX(-roadWidth / 2);
+    leftCurb.castShadow = true;
+    this.scene.add(leftCurb);
+
+    const rightCurb = new THREE.Mesh(curbGeo, curbMat);
+    rightCurb.position.copy(mid);
+    rightCurb.position.y = p1.y - 0.02;
+    rightCurb.lookAt(lookTarget);
+    rightCurb.translateX(roadWidth / 2);
+    rightCurb.castShadow = true;
+    this.scene.add(rightCurb);
+
+    // 3. Crisp White Edge Markings
+    const edgeGeo = new THREE.BoxGeometry(0.12, 0.24, len);
+    const edgeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+
+    const leftEdge = new THREE.Mesh(edgeGeo, edgeMat);
+    leftEdge.position.copy(mid);
+    leftEdge.position.y = p1.y - 0.04;
+    leftEdge.lookAt(lookTarget);
+    leftEdge.translateX(-roadWidth / 2 + 0.34);
+    this.scene.add(leftEdge);
+
+    const rightEdge = new THREE.Mesh(edgeGeo, edgeMat);
+    rightEdge.position.copy(mid);
+    rightEdge.position.y = p1.y - 0.04;
+    rightEdge.lookAt(lookTarget);
+    rightEdge.translateX(roadWidth / 2 - 0.34);
+    this.scene.add(rightEdge);
+
+    // 4. Yellow Dashed Centerline
+    const lineGeo = new THREE.BoxGeometry(0.24, 0.24, len * 0.72);
     const lineMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3 });
     const line = new THREE.Mesh(lineGeo, lineMat);
     line.position.copy(mid);
@@ -647,39 +817,52 @@ class DubaiBoard3D {
 
   createTileSprite(icon, title, isStop, type) {
     const canvas = document.createElement('canvas');
-    canvas.width = 300;
-    canvas.height = 150;
+    canvas.width = 600;
+    canvas.height = 300;
     const ctx = canvas.getContext('2d');
 
-    // Background Bubble
-    ctx.fillStyle = isStop ? 'rgba(185, 28, 28, 0.92)' : 'rgba(11, 19, 41, 0.9)';
-    ctx.strokeStyle = isStop ? '#f87171' : (type === 'payday' ? '#22c55e' : '#ffffff');
-    ctx.lineWidth = 6;
+    // Background Badge with vibrant 3D gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, 300);
+    if (isStop) {
+      bgGrad.addColorStop(0, 'rgba(220, 38, 38, 0.95)');
+      bgGrad.addColorStop(1, 'rgba(127, 29, 29, 0.95)');
+    } else if (type === 'payday') {
+      bgGrad.addColorStop(0, 'rgba(22, 163, 74, 0.95)');
+      bgGrad.addColorStop(1, 'rgba(20, 83, 45, 0.95)');
+    } else {
+      bgGrad.addColorStop(0, 'rgba(30, 41, 59, 0.92)');
+      bgGrad.addColorStop(1, 'rgba(15, 23, 42, 0.96)');
+    }
+    ctx.fillStyle = bgGrad;
+    ctx.strokeStyle = isStop ? '#fca5a5' : (type === 'payday' ? '#4ade80' : '#38bdf8');
+    ctx.lineWidth = 10;
     ctx.beginPath();
-    this.drawRoundedRect(ctx, 10, 10, 280, 130, 24);
+    this.drawRoundedRect(ctx, 16, 16, 568, 268, 40);
     ctx.fill();
     ctx.stroke();
 
-    // Icon
-    ctx.font = '46px "Plus Jakarta Sans", Arial';
+    // Large Crisp Icon
+    ctx.font = '86px "Plus Jakarta Sans", Arial, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(icon, 150, 64);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(icon, 300, 105);
 
-    // Title
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = `bold ${isStop ? 22 : 20}px "Plus Jakarta Sans", sans-serif`;
-    ctx.fillText(title.substring(0, 13), 150, 106);
+    // Bold Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 ${isStop ? 40 : 36}px "Plus Jakarta Sans", sans-serif`;
+    ctx.fillText(title.substring(0, 14), 300, 195);
 
     if (isStop) {
-      ctx.fillStyle = '#fca5a5';
-      ctx.font = 'bold 15px sans-serif';
-      ctx.fillText('● STOP', 150, 130);
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '900 24px "Plus Jakarta Sans", sans-serif';
+      ctx.fillText('★ STOP DECISION ★', 300, 246);
     }
 
     const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
     const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(isStop ? 4.2 : 3.5, isStop ? 2.1 : 1.75, 1);
+    sprite.scale.set(isStop ? 4.8 : 3.8, isStop ? 2.4 : 1.9, 1);
     return sprite;
   }
 
@@ -986,16 +1169,16 @@ class DubaiBoard3D {
       car.lookAt(lookTarget);
     }
 
-    // Dynamic Third-Person Chase Cam behind the car!
+    // Dynamic 45° Smooth Isometric Chase Cam behind the car!
     this.targetCameraPos.set(
-      endPos.x - this.carHeading.x * 15,
-      endPos.y + 9.5,
-      endPos.z - this.carHeading.z * 15
+      endPos.x - this.carHeading.x * 16,
+      endPos.y + 12.5,
+      endPos.z - this.carHeading.z * 16
     );
     this.targetCameraLookAt.set(
-      endPos.x + this.carHeading.x * 5,
+      endPos.x + this.carHeading.x * 6,
       endPos.y + 1.2,
-      endPos.z + this.carHeading.z * 5
+      endPos.z + this.carHeading.z * 6
     );
 
     const duration = 480;

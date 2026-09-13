@@ -289,6 +289,10 @@ socket.on('wheel_spun', ({ player, spinValue, velocity = 1 }) => {
   wheelPlayerName.textContent = `${player.name} dreht das Rad...`;
   wheelOverlay.classList.add('active');
 
+  if (dubaiBoard3D && typeof dubaiBoard3D.spinBoardWheel === 'function') {
+    dubaiBoard3D.spinBoardWheel(spinValue, velocity);
+  }
+
   const sectorIndex = WHEEL_SECTORS.findIndex(s => s.num === spinValue);
   const arc = (2 * Math.PI) / WHEEL_SECTORS.length;
   const targetAngle = (3 * Math.PI / 2) - (sectorIndex * arc + arc / 2);

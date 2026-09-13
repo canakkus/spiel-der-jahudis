@@ -408,18 +408,19 @@ function onWheelPointerUp() {
     computedVelocity = (last.angle - first.angle) / (dt / 16.666);
   }
 
-  const minSpeed = 0.28 + Math.random() * 0.12;
+  const minSpeed = 0.32 + Math.random() * 0.08;
   if (Math.abs(computedVelocity) < 0.1) {
     computedVelocity = (Math.random() > 0.5 ? 1 : -1) * minSpeed;
   } else {
-    computedVelocity = Math.max(-0.65, Math.min(0.65, computedVelocity));
-    if (Math.abs(computedVelocity) < 0.2) {
+    // Dynamic range from soft swipe to power flick (up to 1.2 rad/frame)
+    computedVelocity = Math.max(-1.25, Math.min(1.25, computedVelocity));
+    if (Math.abs(computedVelocity) < 0.25) {
       computedVelocity = Math.sign(computedVelocity) * minSpeed;
     }
   }
 
   const predictedSector = predictFinalSector(wheelAngle, computedVelocity, 0.983);
-  const spinSpeed = Math.abs(computedVelocity) * 10;
+  const spinSpeed = Math.min(6.0, Math.max(1.0, Math.abs(computedVelocity) * 4.5));
 
   // Immediately notify server so TV Host starts spinning concurrently
   socket.emit('player_spin_wheel', {
