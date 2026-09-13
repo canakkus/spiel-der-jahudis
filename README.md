@@ -4,10 +4,16 @@ Ein interaktives Multiplayer-Brettspiel, inspiriert von *The Game of Life 2* auf
 
 ## 🚀 Features
 
-- **Host-Screen (TV / Desktop):** Zentrale 3D-Brettspiel-Ansicht mit Three.js, Rundenübersicht, QR-Code zum Beitreten und Soundeffekten.
-- **Mobile Controller (Smartphone):** Jeder Mitspieler steuert seinen Charakter direkt über den Browser seines Handys (Charakterauswahl, Würfeln, Entscheidungen, Stats).
-- **Socket.IO Realtime Sync:** Blitzschnelle Echtzeit-Kommunikation zwischen Host und allen Controllern.
-- **Charaktere:** Verschiedene spielbare Jahudi-Archetypen (Business Jahudi, Party Jahudi, Krypto Jahudi, Student Jahudi, Fitness Jahudi, Künstler Jahudi).
+- **5 Thematische Biome (Spiel des Lebens World):**
+  - 🎓 **Campus & Uni:** Akademischer Park, Vorlesungssaal mit Säulen, Bibliotheksturm und Weggabelung (Studium vs. Direkteinstieg).
+  - 🏙️ **Metropolis Downtown:** Moderne Wolkenkratzer mit Glasfronten, Skyline-Boulevard, Hochzeit & Penthouse.
+  - 🏡 **Suburbia & Family:** Gemütliche Familienvillen mit Gärten, Zäunen, Kindern & Investment-Stop.
+  - 🎰 **Casino & Krypto Dunes:** Neon-Strip, goldene Pyramide, rotierende 3D-Bitcoin-Skulptur und High-Risk-Weg.
+  - 🏝️ **Retirement Paradise Beach:** Tropischer Palmenstrand, türkisfarbene Bucht, Luxus-Superyacht und goldenes Siegestor.
+- **Natürlicher Landschaftspfad:** Kein Schlangen-Zickzack mehr, sondern eine majestätisch geschwungene Panoramastraße mit Bordsteinen, weißen Fahrbahnmarkierungen und gelben Mittellinien.
+- **Interaktives Touch-Swipe Glücksrad (Handy & TV):** Physikalisches Drehrad mit Schwung-Berechnung – je stärker der Spieler am Smartphone swipet, desto schneller und länger dreht sich das Rad auf dem Handy und als 3D-Centerpiece auf dem TV!
+- **3D-Physikalisches Glücksrad (Hasbro-Stil):** Das klassische bunte Drehrad sitzt als echtes 3D-Monument mitten auf dem Spielbrett und dreht sich synchron mit.
+- **Cinematische 45°-Verfolgerkamera:** Sanft gleitende Kran-Perspektive hinter dem bunten Cabriolet mit Neigung in den Kurven.
 
 ## 🛠️ Installation & Start
 
