@@ -564,7 +564,9 @@ class DubaiBoard3D {
     const road = new THREE.Mesh(roadGeo, roadMat);
     road.position.copy(mid);
     road.position.y = p1.y - 0.06;
-    road.lookAt(p2);
+    const lookTarget = p2.clone();
+    lookTarget.y = road.position.y;
+    road.lookAt(lookTarget);
     road.receiveShadow = true;
     this.scene.add(road);
 
@@ -574,7 +576,7 @@ class DubaiBoard3D {
     const line = new THREE.Mesh(lineGeo, lineMat);
     line.position.copy(mid);
     line.position.y = p1.y - 0.04;
-    line.lookAt(p2);
+    line.lookAt(lookTarget);
     this.scene.add(line);
   }
 
@@ -627,6 +629,22 @@ class DubaiBoard3D {
     this.tileMeshes.push(group);
   }
 
+  drawRoundedRect(ctx, x, y, width, height, radius) {
+    if (ctx.roundRect) {
+      ctx.roundRect(x, y, width, height, radius);
+    } else {
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      ctx.lineTo(x + radius, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+    }
+  }
+
   createTileSprite(icon, title, isStop, type) {
     const canvas = document.createElement('canvas');
     canvas.width = 300;
@@ -638,7 +656,7 @@ class DubaiBoard3D {
     ctx.strokeStyle = isStop ? '#f87171' : (type === 'payday' ? '#22c55e' : '#ffffff');
     ctx.lineWidth = 6;
     ctx.beginPath();
-    ctx.roundRect(10, 10, 280, 130, 24);
+    this.drawRoundedRect(ctx, 10, 10, 280, 130, 24);
     ctx.fill();
     ctx.stroke();
 
@@ -757,7 +775,7 @@ class DubaiBoard3D {
     const nCtx = nc.getContext('2d');
     nCtx.fillStyle = player.character.color;
     nCtx.beginPath();
-    nCtx.roundRect(10, 8, 236, 54, 18);
+    this.drawRoundedRect(nCtx, 10, 8, 236, 54, 18);
     nCtx.fill();
     nCtx.strokeStyle = '#fff';
     nCtx.lineWidth = 3;
@@ -836,6 +854,20 @@ class DubaiBoard3D {
   }
 
   updatePlayers(players) {
+    const playersByNode = {};
+    players.forEach(p => {
+      const pos = p.position !== undefined ? p.position : 0;
+      if (!playersByNode[pos]) playersByNode[pos] = [];
+      playersByNode[pos].push(p);
+    });
+
+    const nodeOffsets = [
+      { x: 0, z: 0 },
+      { x: -1.15, z: 0.55 },
+      { x: 1.15, z: 0.55 },
+      { x: 0, z: -1.15 }
+    ];
+
     players.forEach(player => {
       if (!this.cars[player.socketId]) {
         this.cars[player.socketId] = this.create3DCar(player);
@@ -844,8 +876,12 @@ class DubaiBoard3D {
       this.updateCarPegs(car, player);
 
       const targetNode = this.node3DPositions.find(n => n.id === player.position) || this.node3DPositions[0];
-      if (!car.isMoving) {
-        car.position.set(targetNode.pos.x, targetNode.pos.y + 0.32, targetNode.pos.z);
+      if (!car.isMoving && targetNode) {
+        const listOnNode = playersByNode[player.position !== undefined ? player.position : 0] || [player];
+        const idxOnNode = listOnNode.findIndex(p => p.socketId === player.socketId);
+        const offset = listOnNode.length > 1 ? (nodeOffsets[idxOnNode] || { x: 0, z: 0 }) : { x: 0, z: 0 };
+
+        car.position.set(targetNode.pos.x + offset.x, targetNode.pos.y + 0.32, targetNode.pos.z + offset.z);
       }
     });
   }
@@ -1000,15 +1036,37 @@ class DubaiBoard3D {
   resetCamera() {
     setTimeout(() => {
       this.isTrackingCar = false;
-      this.targetCameraPos.set(0, 52, 68);
+      if (this.cameraMode === 'overview') {
+        this.targetCameraPos.set(0, 68, 86);
+      } else {
+        this.targetCameraPos.set(0, 52, 68);
+      }
       this.targetCameraLookAt.set(0, 0, 0);
     }, 1800);
   }
 
   cameraOverview() {
     this.isTrackingCar = false;
+    this.cameraMode = 'overview';
     this.targetCameraPos.set(0, 68, 86);
     this.targetCameraLookAt.set(0, 0, 0);
+  }
+
+  setCameraMode(mode) {
+    this.cameraMode = mode;
+    if (mode === 'overview') {
+      this.cameraOverview();
+    } else {
+      this.isTrackingCar = false;
+      this.targetCameraPos.set(0, 52, 68);
+      this.targetCameraLookAt.set(0, 0, 0);
+    }
+  }
+
+  toggleCameraMode() {
+    this.cameraMode = (this.cameraMode === 'overview') ? 'chase' : 'overview';
+    this.setCameraMode(this.cameraMode);
+    return this.cameraMode;
   }
 
   cameraFollowCar(car) {
@@ -1091,7 +1149,10 @@ class DubaiBoard3D {
       }
     });
 
-    if (this.controls && !this.isTrackingCar) this.controls.update();
+    if (this.controls && !this.isTrackingCar) {
+      this.controls.target.lerp(this.currentCameraLookAt, 0.05);
+      this.controls.update();
+    }
     this.renderer.render(this.scene, this.camera);
   }
 

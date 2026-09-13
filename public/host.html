@@ -176,7 +176,10 @@
   <div id="top-bar">
     <div class="game-logo">🎮 Spiel der Jahudis</div>
     <div id="turn-text">Warte auf Spieler...</div>
-    <div id="room-code-game"></div>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <button id="btn-camera-toggle" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#f8fafc; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; transition:all 0.2s;">🎥 Verfolger-Kamera</button>
+      <div id="room-code-game"></div>
+    </div>
   </div>
   <div id="board-canvas"></div>
   <div id="bottom-bar">
@@ -189,7 +192,7 @@
 <!-- Wheel -->
 <div class="overlay" id="wheel-overlay">
   <div id="wheel-player-name">Dreht das Rad...</div>
-  <canvas id="wheel-canvas" width="320" height="320"></canvas>
+  <canvas id="wheel-canvas" width="480" height="480"></canvas>
 </div>
 
 <!-- Action Card -->

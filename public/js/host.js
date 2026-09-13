@@ -38,57 +38,120 @@ const leaderboardEl   = document.getElementById('score-cards');
 
 // ── Wheel ─────────────────────────────────────────────────────
 const WHEEL_SECTORS = [
-  {num:1,color:'#ec4899'},{num:2,color:'#f59e0b'},{num:3,color:'#22c55e'},
-  {num:4,color:'#3b82f6'},{num:5,color:'#a855f7'},{num:6,color:'#ec4899'},
-  {num:7,color:'#f59e0b'},{num:8,color:'#22c55e'},{num:9,color:'#3b82f6'},
-  {num:10,color:'#a855f7'}
+  { num: 1,  color: '#ef4444' }, // Red
+  { num: 2,  color: '#f97316' }, // Orange
+  { num: 3,  color: '#f59e0b' }, // Amber
+  { num: 4,  color: '#10b981' }, // Green
+  { num: 5,  color: '#06b6d4' }, // Cyan
+  { num: 6,  color: '#3b82f6' }, // Blue
+  { num: 7,  color: '#6366f1' }, // Indigo
+  { num: 8,  color: '#a855f7' }, // Purple
+  { num: 9,  color: '#ec4899' }, // Pink
+  { num: 10, color: '#eab308' }, // Gold
 ];
 let wheelAngle = 0;
 
 function drawWheel(angle) {
   if (!wheelCanvas) return;
   const ctx = wheelCanvas.getContext('2d');
-  const cx = wheelCanvas.width / 2, cy = wheelCanvas.height / 2, r = cx - 10;
-  ctx.clearRect(0, 0, wheelCanvas.width, wheelCanvas.height);
+  const size = wheelCanvas.width;
+  const cx = size / 2, cy = size / 2, r = cx - 24;
+  ctx.clearRect(0, 0, size, size);
+
+  // Outer golden bezel with radial gradient
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + 18, 0, Math.PI * 2);
+  const outerGrad = ctx.createRadialGradient(cx, cy, r - 10, cx, cy, r + 20);
+  outerGrad.addColorStop(0, '#f59e0b');
+  outerGrad.addColorStop(0.6, '#b45309');
+  outerGrad.addColorStop(1, '#78350f');
+  ctx.fillStyle = outerGrad;
+  ctx.fill();
+
+  // 20 golden studs around the rim
+  for (let i = 0; i < 20; i++) {
+    const studAngle = (i / 20) * Math.PI * 2 + angle;
+    const sx = cx + Math.cos(studAngle) * (r + 9);
+    const sy = cy + Math.sin(studAngle) * (r + 9);
+    ctx.beginPath();
+    ctx.arc(sx, sy, 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fef08a';
+    ctx.fill();
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 10 sectors
   const arc = (2 * Math.PI) / WHEEL_SECTORS.length;
   WHEEL_SECTORS.forEach((sec, i) => {
     const start = i * arc + angle;
+    const end = start + arc;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, start, start + arc);
+    ctx.arc(cx, cy, r, start, end);
     ctx.closePath();
     ctx.fillStyle = sec.color;
     ctx.fill();
     ctx.strokeStyle = '#0b1329';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.stroke();
+
+    // 3D sector lighting overlay
+    const grad = ctx.createRadialGradient(cx, cy, r * 0.15, cx, cy, r);
+    grad.addColorStop(0, 'rgba(255,255,255,0.22)');
+    grad.addColorStop(0.75, 'rgba(0,0,0,0.05)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.38)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Number text
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(start + arc / 2);
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 22px sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(0,0,0,0.85)';
+    ctx.shadowBlur = 8;
+    ctx.font = '900 36px "Plus Jakarta Sans", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(sec.num, r * 0.65, 8);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(sec.num, r * 0.68, 0);
     ctx.restore();
   });
-  // Arrow
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.fillStyle = '#fff';
-  ctx.shadowColor = '#000';
-  ctx.shadowBlur = 4;
+
+  // Center cap
   ctx.beginPath();
-  ctx.moveTo(-8, -r + 5);
-  ctx.lineTo(8, -r + 5);
-  ctx.lineTo(0, -r - 20);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-  // Center circle
-  ctx.beginPath();
-  ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r * 0.3, 0, Math.PI * 2);
   ctx.fillStyle = '#0b1329';
   ctx.fill();
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 6;
+  ctx.stroke();
+
+  // Sparkle icon in center
+  ctx.font = '30px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('✨', cx, cy);
+
+  // Golden Pointer at 12 o'clock pointing DOWN into the wheel rim
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.shadowColor = 'rgba(0,0,0,0.75)';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.moveTo(-16, -r - 18);
+  ctx.lineTo(16, -r - 18);
+  ctx.lineTo(0, -r + 10);
+  ctx.closePath();
+  ctx.fillStyle = '#f59e0b';
+  ctx.fill();
+  ctx.strokeStyle = '#fef08a';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.restore();
 }
 
 // ── Room creation ─────────────────────────────────────────────
@@ -144,6 +207,16 @@ function renderLobbyPlayers() {
       </div>
     `;
     lobbyPlayersGrid.appendChild(card);
+  });
+}
+
+const btnCameraToggle = document.getElementById('btn-camera-toggle');
+if (btnCameraToggle) {
+  btnCameraToggle.addEventListener('click', () => {
+    if (dubaiBoard3D) {
+      const mode = dubaiBoard3D.toggleCameraMode();
+      btnCameraToggle.textContent = mode === 'overview' ? '🚁 Übersicht' : '🎥 Verfolger-Kamera';
+    }
   });
 }
 

@@ -384,6 +384,16 @@ function onWheelPointerMove(e) {
   }
 }
 
+function predictFinalSector(currentAngle, initialVelocity, friction = 0.983) {
+  let simAngle = currentAngle;
+  let simVel = initialVelocity;
+  while (Math.abs(simVel) > 0.0015) {
+    simAngle += simVel;
+    simVel *= friction;
+  }
+  return getSelectedSector(simAngle);
+}
+
 function onWheelPointerUp() {
   if (!isWheelDragging || !isMyTurn || isWheelSpinning) return;
   isWheelDragging = false;
@@ -408,10 +418,20 @@ function onWheelPointerUp() {
     }
   }
 
-  launchPhysicsSpin(computedVelocity);
+  const predictedSector = predictFinalSector(wheelAngle, computedVelocity, 0.983);
+  const spinSpeed = Math.abs(computedVelocity) * 10;
+
+  // Immediately notify server so TV Host starts spinning concurrently
+  socket.emit('player_spin_wheel', {
+    roomCode: currentRoomCode,
+    spinValue: predictedSector.num,
+    velocity: spinSpeed
+  });
+
+  launchPhysicsSpin(computedVelocity, predictedSector);
 }
 
-function launchPhysicsSpin(initialVelocity) {
+function launchPhysicsSpin(initialVelocity, expectedSector = null) {
   isWheelSpinning = true;
   wheelAngularVelocity = initialVelocity;
   if (wheelContainer) wheelContainer.classList.add('disabled');
@@ -443,7 +463,7 @@ function launchPhysicsSpin(initialVelocity) {
     } else {
       wheelAngularVelocity = 0;
       isWheelSpinning = false;
-      const finalSector = getSelectedSector(wheelAngle);
+      const finalSector = expectedSector || getSelectedSector(wheelAngle);
       
       if (navigator.vibrate) {
         try { navigator.vibrate([40, 40, 100]); } catch (_) {}
@@ -453,17 +473,24 @@ function launchPhysicsSpin(initialVelocity) {
         wheelHint.textContent = `🎉 Du hast eine ${finalSector.num} gedreht!`;
         wheelHint.classList.remove('active');
       }
-
-      const spinSpeed = Math.abs(initialVelocity) * 10;
-      socket.emit('player_spin_wheel', {
-        roomCode: currentRoomCode,
-        spinValue: finalSector.num,
-        velocity: spinSpeed
-      });
     }
   }
   requestAnimationFrame(step);
 }
+
+socket.on('wheel_spun', ({ player, spinValue, velocity = 1 }) => {
+  if (myPlayer && player.socketId !== myPlayer.socketId) {
+    if (wheelHint) {
+      wheelHint.textContent = `🎲 ${player.name} dreht das Rad...`;
+      wheelHint.classList.add('active');
+    }
+  } else if (!isWheelSpinning && isMyTurn) {
+    // Spin triggered via Host or fallback
+    const targetSector = CONTROLLER_WHEEL_SECTORS.find(s => s.num === spinValue) || CONTROLLER_WHEEL_SECTORS[0];
+    const computedVel = Math.min(0.65, Math.max(0.3, velocity * 0.08));
+    launchPhysicsSpin(computedVel, targetSector);
+  }
+});
 
 if (wheelContainer) {
   wheelContainer.addEventListener('touchstart', onWheelPointerDown, { passive: false });
