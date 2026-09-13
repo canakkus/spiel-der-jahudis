@@ -4,7 +4,7 @@
   "description": "Interactive Multiplayer Board Game inspired by The Game of Life 2 on Amazon Luna",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "kill -9 $(lsof -ti:42069) 2>/dev/null || true; node server.js"
   },
   "dependencies": {
     "express": "^4.19.2",

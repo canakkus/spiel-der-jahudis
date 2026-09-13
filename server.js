@@ -16,7 +16,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 42069;
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve data files to frontend
@@ -38,10 +38,16 @@ function getLocalIpAddress() {
 const localIp = getLocalIpAddress();
 
 const PRESET_CHARACTERS = [
-  { id: 'business', name: 'Business Bro', icon: '💼', color: '#3b82f6', car: '🏎️' },
-  { id: 'party', name: 'Casino Queen', icon: '🪩', color: '#ec4899', car: '🚗' },
-  { id: 'crypto', name: 'Krypto Bro', icon: '🚀', color: '#f59e0b', car: '🚙' },
-  { id: 'student', name: 'Hustler', icon: '🎓', color: '#10b981', car: '🛵' }
+  { id: 'business',   name: 'Business Bro',      icon: '💼', color: '#3b82f6', car: '🏎️ Sportwagen',    carModel: 'car_sports', tag: 'Krawatte, Excel & Kaltakquise' },
+  { id: 'party',      name: 'Casino Queen',      icon: '🪩', color: '#ec4899', car: '🏎️ Rennwagen',     carModel: 'car_race',   tag: 'All-In auf Rot & Champagner' },
+  { id: 'crypto',     name: 'Krypto Bro',        icon: '🚀', color: '#f59e0b', car: '🚙 Krypto-SUV',    carModel: 'car_suv',    tag: 'To the Moon, HODL & Lambo' },
+  { id: 'student',    name: 'Hustler Student',   icon: '🎓', color: '#10b981', car: '🚗 Kompaktflitzer', carModel: 'car_hatch',  tag: 'Thesis, 5 Red Bull & Hoffnung' },
+  { id: 'gym',        name: 'Gym Bro / Pumper',  icon: '💪', color: '#ef4444', car: '🚙 Monster-SUV',    carModel: 'car_suv',    tag: 'Pre-Workout & 200kg Deadlift' },
+  { id: 'coder',      name: 'Tech Guru',         icon: '💻', color: '#06b6d4', car: '🚗 E-Limousine',    carModel: 'car_sedan',  tag: 'Git push --force & Kaffeerausch' },
+  { id: 'influencer', name: 'Social Influencer', icon: '📸', color: '#a855f7', car: '🏎️ Cabrio',        carModel: 'car_sports', tag: 'Daily Vlog & Code: JAHUDI20' },
+  { id: 'agent',      name: 'Geheimagent',       icon: '🕶️', color: '#64748b', car: '🚗 Stealth-Sedan',  carModel: 'car_sedan',  tag: 'Undercover, Trenchcoat & Pokerface' },
+  { id: 'hippie',     name: 'Vanlife Hippie',    icon: '🚐', color: '#84cc16', car: '🚐 Camper-Van',    carModel: 'car_van',    tag: 'Roadtrip, Akustikgitarre & Chillen' },
+  { id: 'rockstar',   name: 'Rockstar',          icon: '🎸', color: '#e11d48', car: '🚐 Tour-Bus',      carModel: 'car_van',    tag: 'Stadiontour & Hotelzimmer zerlegen' }
 ];
 
 const rooms = {};

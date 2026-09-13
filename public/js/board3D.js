@@ -14,14 +14,16 @@ class DubaiBoard3D {
     this.cars = {};
     this.tileMeshes = [];
     this.node3DPositions = [];
-    this.targetCameraPos = new THREE.Vector3(0, 52, 68);
-    this.targetCameraLookAt = new THREE.Vector3(0, 0, 0);
-    this.currentCameraLookAt = new THREE.Vector3(0, 0, 0);
+    this.targetCameraPos = new THREE.Vector3(0, 165, 80);
+    this.targetCameraLookAt = new THREE.Vector3(0, 0, 8);
+    this.currentCameraLookAt = new THREE.Vector3(0, 0, 8);
+    this.cameraMode = 'overview';
     this.isTrackingCar = false;
     this.trackedCar = null;
     this.carHeading = new THREE.Vector3(0, 0, -1);
     this.waterMesh = null;
     this.animatedObjects = [];
+    this.models = {};
 
     // Callbacks from host.js
     this.onPassPayday = null;
@@ -35,10 +37,11 @@ class DubaiBoard3D {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#0a1128');
-    this.scene.fog = new THREE.FogExp2('#0a1128', 0.005);
+    this.scene.fog = new THREE.FogExp2('#0a1128', 0.0016);
 
-    this.camera = new THREE.PerspectiveCamera(46, width / height, 0.1, 1500);
-    this.camera.position.set(0, 55, 75);
+    this.camera = new THREE.PerspectiveCamera(46, width / height, 1.0, 1000);
+    this.camera.position.set(0, 165, 80);
+    this.camera.lookAt(0, 0, 8);
 
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -58,11 +61,28 @@ class DubaiBoard3D {
       this.controls.enableDamping = true;
       this.controls.dampingFactor = 0.05;
       this.controls.maxPolarAngle = Math.PI / 2.05;
-      this.controls.minDistance = 15;
-      this.controls.maxDistance = 180;
+      this.controls.minDistance = 20;
+      this.controls.maxDistance = 350;
+      this.controls.enableZoom = true;
+      this.controls.zoomSpeed = 1.2;
+
+      // Manual override: user scroll/drag temporarily disables car tracking
+      this._userOverride = false;
+      this._overrideTimeout = null;
+      const releaseOverride = () => {
+        this._userOverride = true;
+        if (this._overrideTimeout) clearTimeout(this._overrideTimeout);
+        // Auto-resume tracking after 4 seconds of no input
+        this._overrideTimeout = setTimeout(() => {
+          this._userOverride = false;
+        }, 4000);
+      };
+      this.renderer.domElement.addEventListener('wheel', releaseOverride, { passive: true });
+      this.renderer.domElement.addEventListener('pointerdown', releaseOverride);
     }
 
     this.setupLighting();
+    this.load3DAssets();
     this.buildThemedWorld();
     this.buildRoadNetwork();
 
@@ -72,41 +92,193 @@ class DubaiBoard3D {
 
   // ── High-Definition Lighting Setup ────────────────────────────
   setupLighting() {
-    // Warm hemisphere ambient light (sky blue + warm ground bounce)
-    const hemiLight = new THREE.HemisphereLight(0x93c5fd, 0x1e293b, 0.65);
+    // Warm hemisphere ambient light (sky blue + rich warm lawn bounce)
+    const hemiLight = new THREE.HemisphereLight(0xbae6fd, 0x166534, 0.85);
     this.scene.add(hemiLight);
 
-    // Warm main sun light with soft shadows
-    const sun = new THREE.DirectionalLight(0xfff5db, 1.35);
-    sun.position.set(55, 110, 65);
+    // Warm main sun light with soft shadows (scaled for huge continent)
+    const sun = new THREE.DirectionalLight(0xfffaed, 1.55);
+    sun.position.set(85, 180, 95);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 2048;
     sun.shadow.mapSize.height = 2048;
-    sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 350;
-    sun.shadow.camera.left = -95;
-    sun.shadow.camera.right = 95;
-    sun.shadow.camera.top = 95;
-    sun.shadow.camera.bottom = -95;
-    sun.shadow.bias = -0.001;
-    sun.shadow.normalBias = 0.02;
+    sun.shadow.camera.near = 10;
+    sun.shadow.camera.far = 420;
+    sun.shadow.camera.left = -170;
+    sun.shadow.camera.right = 170;
+    sun.shadow.camera.top = 170;
+    sun.shadow.camera.bottom = -170;
+    sun.shadow.bias = 0.0001; // Positive bias completely eliminates self-shadow acne moiré
+    sun.shadow.normalBias = 0.05;
     this.scene.add(sun);
 
     // Cyan rim light from ocean
-    const cyanRim = new THREE.DirectionalLight(0x06b6d4, 0.45);
-    cyanRim.position.set(-65, 45, -55);
+    const cyanRim = new THREE.DirectionalLight(0x38bdf8, 0.55);
+    cyanRim.position.set(-110, 75, -95);
     this.scene.add(cyanRim);
 
-    // Magenta accent light for Casino & City areas
-    const pinkRim = new THREE.DirectionalLight(0xec4899, 0.35);
-    pinkRim.position.set(40, 25, 60);
-    this.scene.add(pinkRim);
+    // Warm golden accent light for Casino & City areas
+    const warmRim = new THREE.DirectionalLight(0xfbbf24, 0.45);
+    warmRim.position.set(40, 35, 60);
+    this.scene.add(warmRim);
+  }
+
+  // ── 🎨 High-Res Procedural Terrain Canvas (2048x2048) ──────────
+  createContinentTexture() {
+    const size = 2048;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const cx = size / 2;
+    const cy = size / 2;
+    const R = size / 2 - 12;
+
+    // 1. Base vibrant meadow lawn gradient
+    const baseGrad = ctx.createRadialGradient(cx, cy, 50, cx, cy, R);
+    baseGrad.addColorStop(0, '#22c55e');
+    baseGrad.addColorStop(0.35, '#16a34a');
+    baseGrad.addColorStop(0.75, '#15803d');
+    baseGrad.addColorStop(0.94, '#166534');
+    baseGrad.addColorStop(0.985, '#eab308'); // Golden shoreline transition
+    baseGrad.addColorStop(1.0, '#ca8a04');
+    ctx.fillStyle = baseGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. Concentric lawn mowed turf stripes (golf-course aesthetic)
+    for (let r = 90; r < R - 40; r += 26) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.lineWidth = 13;
+      ctx.strokeStyle = (Math.floor(r / 26) % 2 === 0) ? 'rgba(255, 255, 255, 0.045)' : 'rgba(0, 0, 0, 0.035)';
+      ctx.stroke();
+    }
+
+    const toCanvas = (wx, wz) => ({
+      px: cx + (wx / 158) * (R * 0.98),
+      py: cy + (wz / 158) * (R * 0.98)
+    });
+
+    // 3. Biome District Underlays
+    // Campus (North-West: -48, -48)
+    const cCampus = toCanvas(-48, -48);
+    const campusGrad = ctx.createRadialGradient(cCampus.px, cCampus.py, 10, cCampus.px, cCampus.py, 220);
+    campusGrad.addColorStop(0, 'rgba(74, 222, 128, 0.5)');
+    campusGrad.addColorStop(0.7, 'rgba(34, 197, 94, 0.25)');
+    campusGrad.addColorStop(1, 'rgba(34, 197, 94, 0)');
+    ctx.fillStyle = campusGrad;
+    ctx.beginPath();
+    ctx.arc(cCampus.px, cCampus.py, 220, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Downtown Metropolis (North-East: 58, -38)
+    const cCity = toCanvas(58, -38);
+    const cityGrad = ctx.createRadialGradient(cCity.px, cCity.py, 20, cCity.px, cCity.py, 270);
+    cityGrad.addColorStop(0, 'rgba(15, 23, 42, 0.85)');
+    cityGrad.addColorStop(0.7, 'rgba(30, 41, 59, 0.6)');
+    cityGrad.addColorStop(1, 'rgba(30, 41, 59, 0)');
+    ctx.fillStyle = cityGrad;
+    ctx.beginPath();
+    ctx.arc(cCity.px, cCity.py, 270, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Subtle cyan cyber grid over Downtown
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cCity.px, cCity.py, 230, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.18)';
+    ctx.lineWidth = 2;
+    for (let gx = cCity.px - 230; gx <= cCity.px + 230; gx += 26) {
+      ctx.beginPath(); ctx.moveTo(gx, cCity.py - 230); ctx.lineTo(gx, cCity.py + 230); ctx.stroke();
+    }
+    for (let gy = cCity.py - 230; gy <= cCity.py + 230; gy += 26) {
+      ctx.beginPath(); ctx.moveTo(cCity.px - 230, gy); ctx.lineTo(cCity.px + 230, gy); ctx.stroke();
+    }
+    ctx.restore();
+
+    // Suburbia & Family (East: 58, 38)
+    const cSub = toCanvas(58, 38);
+    const subGrad = ctx.createRadialGradient(cSub.px, cSub.py, 20, cSub.px, cSub.py, 250);
+    subGrad.addColorStop(0, 'rgba(34, 197, 94, 0.6)');
+    subGrad.addColorStop(0.65, 'rgba(22, 163, 74, 0.35)');
+    subGrad.addColorStop(1, 'rgba(22, 163, 74, 0)');
+    ctx.fillStyle = subGrad;
+    ctx.beginPath();
+    ctx.arc(cSub.px, cSub.py, 250, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Casino Dunes (South-West: -52, 36)
+    const cCas = toCanvas(-52, 36);
+    const casGrad = ctx.createRadialGradient(cCas.px, cCas.py, 20, cCas.px, cCas.py, 240);
+    casGrad.addColorStop(0, 'rgba(234, 179, 8, 0.75)');
+    casGrad.addColorStop(0.65, 'rgba(202, 138, 4, 0.45)');
+    casGrad.addColorStop(1, 'rgba(202, 138, 4, 0)');
+    ctx.fillStyle = casGrad;
+    ctx.beginPath();
+    ctx.arc(cCas.px, cCas.py, 240, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Retirement Beach (South: 0, 72)
+    const cBeach = toCanvas(0, 72);
+    const beachGrad = ctx.createRadialGradient(cBeach.px, cBeach.py, 10, cBeach.px, cBeach.py, 210);
+    beachGrad.addColorStop(0, 'rgba(254, 240, 138, 0.85)');
+    beachGrad.addColorStop(0.65, 'rgba(253, 224, 71, 0.5)');
+    beachGrad.addColorStop(1, 'rgba(253, 224, 71, 0)');
+    ctx.fillStyle = beachGrad;
+    ctx.beginPath();
+    ctx.arc(cBeach.px, cBeach.py, 210, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 4. Center Grand Plaza Ring (Concentric Marble & Gold surrounding Wheel)
+    const cWheel = toCanvas(0, 0);
+    const wheelPlazaR = (19 / 158) * (R * 0.98);
+    const wheelGrad = ctx.createRadialGradient(cWheel.px, cWheel.py, 10, cWheel.px, cWheel.py, wheelPlazaR * 1.6);
+    wheelGrad.addColorStop(0, '#fef08a');
+    wheelGrad.addColorStop(0.35, '#f59e0b');
+    wheelGrad.addColorStop(0.7, '#d97706');
+    wheelGrad.addColorStop(1, 'rgba(217, 119, 6, 0)');
+    ctx.fillStyle = wheelGrad;
+    ctx.beginPath();
+    ctx.arc(cWheel.px, cWheel.py, wheelPlazaR * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(cWheel.px, cWheel.py, wheelPlazaR * 1.1, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(254, 240, 138, 0.5)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cWheel.px, cWheel.py, wheelPlazaR * 1.35, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 5. Golden Sandy Shoreline / Coastal Rim
+    ctx.beginPath();
+    ctx.arc(cx, cy, R - 14, 0, Math.PI * 2);
+    ctx.lineWidth = 28;
+    ctx.strokeStyle = '#fef08a';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, R - 2, 0, Math.PI * 2);
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = '#eab308';
+    ctx.stroke();
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 8;
+    return tex;
   }
 
   // ── Build 5 Thematic Biomes (Spiel des Lebens World) ───────────
   buildThemedWorld() {
-    // 1. Turquoise Ocean
-    const waterGeo = new THREE.PlaneGeometry(600, 600, 32, 32);
+    // 1. Turquoise Ocean (Expanded)
+    const waterGeo = new THREE.PlaneGeometry(1200, 1200, 32, 32);
     const waterMat = new THREE.MeshStandardMaterial({
       color: 0x0284c7,
       roughness: 0.12,
@@ -120,52 +292,62 @@ class DubaiBoard3D {
     this.waterMesh.receiveShadow = true;
     this.scene.add(this.waterMesh);
 
-    // 2. Main Land Platform (Beveled Continent)
-    const continentGeo = new THREE.CylinderGeometry(78, 84, 2.4, 64);
-    const continentMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      roughness: 0.9,
-      metalness: 0.1
+    // 2. Main Land Platform (Warm Sandstone Beveled Continent Cliff - Open-ended so top face never Z-fights!)
+    const continentGeo = new THREE.CylinderGeometry(158, 172, 4.0, 64, 1, true);
+    const cliffMat = new THREE.MeshStandardMaterial({
+      color: 0xc4a47c, // Warm golden-sandstone / coastal cliff rock
+      roughness: 0.88,
+      metalness: 0.08,
+      side: THREE.DoubleSide
     });
-    const continent = new THREE.Mesh(continentGeo, continentMat);
+    const continent = new THREE.Mesh(continentGeo, cliffMat);
     continent.position.y = 0;
     continent.receiveShadow = true;
+    continent.castShadow = true;
     this.scene.add(continent);
 
+    // 3. Lush Stylized Top Grass Terrain Disc (The single authoritative top surface)
+    const topTerrainGeo = new THREE.CircleGeometry(158, 64);
+    const terrainTex = this.createContinentTexture();
+    const terrainMat = new THREE.MeshStandardMaterial({
+      map: terrainTex,
+      roughness: 0.75,
+      metalness: 0.1
+    });
+    const topTerrain = new THREE.Mesh(topTerrainGeo, terrainMat);
+    topTerrain.rotation.x = -Math.PI / 2;
+    topTerrain.position.y = 2.0;
+    topTerrain.receiveShadow = true;
+    this.scene.add(topTerrain);
+
     // ── Biome 1: Campus & Uni (North-West) ──────────────────────
-    this.buildCampusBiome(-18, 0, -28);
+    this.buildCampusBiome(-48, 0, -48);
 
     // ── Biome 2: Downtown Metropolis (North-East) ───────────────
-    this.buildDowntownBiome(45, 0, -10);
+    this.buildDowntownBiome(58, 0, -38);
 
-    // ── Biome 3: Suburbia & Family (Center-East to Center) ──────
-    this.buildSuburbiaBiome(10, 0, 10);
+    // ── Biome 3: Suburbia & Family (East) ───────────────────────
+    this.buildSuburbiaBiome(58, 0, 38);
 
     // ── Biome 4: Casino & Crypto Dunes (South-West) ─────────────
-    this.buildCasinoBiome(-35, 0, 20);
+    this.buildCasinoBiome(-52, 0, 36);
 
-    // ── Biome 5: Retirement Beach Paradise (South / South-East) ─
-    this.buildBeachBiome(6, 0, 32);
+    // ── Biome 5: Retirement Beach Paradise (South) ──────────────
+    this.buildBeachBiome(0, 0, 72);
 
-    // ── 🎡 Iconic 3D Spinner Wheel (Hasbro Style Centerpiece) ───
-    this.build3DSpinnerWheel(0, 1.2, -4);
+    // ── 🌍 World Landmarks & Forests ────────────────────────────
+    this.buildWorldLandmarks();
+
+    // ── 🎡 Iconic 3D Spinner Wheel (Centerpiece - Free & Open) ──
+    this.build3DSpinnerWheel(0, 2.0, 0);
   }
 
   // ── 🎓 BIOME 1: Campus & Uni ──────────────────────────────────
   buildCampusBiome(cx, cy, cz) {
-    // Green Campus lawn plate
-    const lawnGeo = new THREE.CylinderGeometry(28, 30, 0.4, 32);
-    const lawnMat = new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.85 });
-    const lawn = new THREE.Mesh(lawnGeo, lawnMat);
-    lawn.position.set(cx, 1.200, cz);
-    lawn.receiveShadow = true;
-    this.scene.add(lawn);
-
     // Main Academic Lecture Hall
     const hallGroup = new THREE.Group();
-    hallGroup.position.set(cx - 6, 1.4, cz - 8);
+    hallGroup.position.set(cx - 6, 2.0, cz - 8);
 
-    // Hall base & roof
     const bldgGeo = new THREE.BoxGeometry(14, 7, 10);
     const bldgMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.3, metalness: 0.1 });
     const bldg = new THREE.Mesh(bldgGeo, bldgMat);
@@ -195,7 +377,7 @@ class DubaiBoard3D {
 
     // Library Tower with Clock
     const libGroup = new THREE.Group();
-    libGroup.position.set(cx + 10, 1.4, cz - 4);
+    libGroup.position.set(cx + 10, 2.0, cz - 4);
     const towerGeo = new THREE.BoxGeometry(5, 14, 5);
     const towerMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
     const tower = new THREE.Mesh(towerGeo, towerMat);
@@ -212,42 +394,81 @@ class DubaiBoard3D {
     this.animatedObjects.push({ obj: spire, type: 'rotateY', speed: 0.005 });
     this.scene.add(libGroup);
 
-    // Campus Trees
+    // Campus Athletic Soccer / Sports Field
+    const fieldGeo = new THREE.BoxGeometry(20, 0.2, 13);
+    const fieldMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.85 });
+    const field = new THREE.Mesh(fieldGeo, fieldMat);
+    field.position.set(cx - 26, 2.02, cz - 14);
+    field.receiveShadow = true;
+    this.scene.add(field);
+
+    // White goal boxes
+    const goalGeo = new THREE.BoxGeometry(0.4, 1.6, 4);
+    const goalMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const goal1 = new THREE.Mesh(goalGeo, goalMat);
+    goal1.position.set(cx - 35, 2.8, cz - 14);
+    this.scene.add(goal1);
+    const goal2 = new THREE.Mesh(goalGeo, goalMat);
+    goal2.position.set(cx - 17, 2.8, cz - 14);
+    this.scene.add(goal2);
+
+    // Additional Campus Dormitories & GLB Academic Buildings
+    this.spawnGLBModel('bldg_a', cx - 22, 2.0, cz - 26, 3.8, 0.4);
+    this.spawnGLBModel('bldg_c', cx - 34, 2.0, cz + 2, 3.6, -0.6);
+    this.spawnGLBModel('bldg_b', cx - 12, 2.0, cz - 28, 3.5, 0.2);
+
+    // Campus Trees & Real 3D GLB Vegetation
     const trees = [
       [cx - 15, cz + 6], [cx - 8, cz + 10], [cx + 4, cz + 8],
       [cx + 14, cz + 6], [cx - 18, cz - 4], [cx + 12, cz - 12]
     ];
-    trees.forEach(p => this.createCampusTree(p[0], 1.4, p[1]));
+    trees.forEach(p => this.createCampusTree(p[0], 2.0, p[1]));
+
+    this.spawnGLBModel('tree_1', cx - 18, 2.0, cz - 14, 0.95);
+    this.spawnGLBModel('tree_pine', cx + 16, 2.0, cz - 14, 1.1);
+    this.spawnGLBModel('tree_1', cx - 16, 2.0, cz + 12, 1.0);
+    this.spawnGLBModel('tree_pine', cx - 28, 2.0, cz + 14, 1.2);
+    this.spawnGLBModel('tree_1', cx - 38, 2.0, cz - 4, 1.05);
   }
 
   // ── 🏙️ BIOME 2: Downtown Metropolis ──────────────────────────
   buildDowntownBiome(cx, cy, cz) {
-    // Dark Asphalt Plaza
-    const plazaGeo = new THREE.CylinderGeometry(32, 34, 0.4, 32);
-    const plazaMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7, metalness: 0.3 });
-    const plaza = new THREE.Mesh(plazaGeo, plazaMat);
-    plaza.position.set(cx, 1.204, cz);
-    plaza.receiveShadow = true;
-    this.scene.add(plaza);
+    // Real 3D GLB City Office Buildings (cleanly clustered in the downtown district, away from track)
+    this.spawnGLBModel('bldg_a', cx - 12, 2.0, cz - 14, 4.0, 0.3);
+    this.spawnGLBModel('bldg_b', cx + 6, 2.0, cz - 16, 3.6, -0.4);
+    this.spawnGLBModel('bldg_c', cx - 10, 2.0, cz + 12, 4.2, 0.8);
+    this.spawnGLBModel('bldg_d', cx + 8, 2.0, cz + 10, 3.8, -0.6);
+    this.spawnGLBModel('bldg_a', cx + 12, 2.0, cz - 22, 4.0, 0.5);
+    this.spawnGLBModel('bldg_b', cx + 18, 2.0, cz - 4, 3.6, -0.7);
+    this.spawnGLBModel('bldg_c', cx + 12, 2.0, cz + 18, 4.2, 0.2);
+    this.spawnGLBModel('bldg_d', cx - 4, 2.0, cz - 22, 3.8, 1.1);
 
-    // Modern Luxury Skyscrapers
-    this.createSkyscraper(cx - 8, 1.4, cz - 10, 8, 48, 0x0284c7, 0x38bdf8);
-    this.createSkyscraper(cx + 8, 1.4, cz - 12, 7, 56, 0xf59e0b, 0xfef08a);
-    this.createSkyscraper(cx + 16, 1.4, cz + 4, 9, 42, 0x6366f1, 0xa5b4fc);
-    this.createSkyscraper(cx - 14, 1.4, cz + 2, 7, 36, 0x06b6d4, 0x67e8f9);
-    this.createSkyscraper(cx + 4, 1.4, cz + 10, 6, 28, 0xec4899, 0xf472b6);
+    // Helipad atop Downtown Plaza
+    const helipad = new THREE.Mesh(
+      new THREE.CylinderGeometry(3.5, 3.5, 0.4, 24),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3 })
+    );
+    helipad.position.set(cx + 6, 2.2, cz - 16);
+    this.scene.add(helipad);
+    const heliH = new THREE.Mesh(
+      new THREE.RingGeometry(1.2, 1.8, 24),
+      new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
+    );
+    heliH.rotation.x = -Math.PI / 2;
+    heliH.position.set(cx + 6, 2.45, cz - 16);
+    this.scene.add(heliH);
 
     // Street lamps
     const lamps = [
       [cx - 2, cz - 4], [cx + 2, cz + 2], [cx + 12, cz - 2], [cx - 10, cz - 4]
     ];
-    lamps.forEach(p => this.createStreetLamp(p[0], 1.4, p[1]));
+    lamps.forEach(p => this.createStreetLamp(p[0], 2.0, p[1]));
 
-    // Flying Cars / Drones circling the skyscrapers
+    // Flying Cars / Drones circling above the buildings
     const droneColors = [0xef4444, 0x38bdf8, 0xfacc15];
     for (let i = 0; i < 3; i++) {
       const droneGroup = new THREE.Group();
-      droneGroup.position.set(cx + (Math.random() * 20 - 10), 15 + Math.random() * 10, cz + (Math.random() * 20 - 10));
+      droneGroup.position.set(cx + (Math.random() * 16 - 8), 12 + Math.random() * 6, cz + (Math.random() * 16 - 8));
       
       const droneGeo = new THREE.BoxGeometry(1.2, 0.4, 0.6);
       const droneMat = new THREE.MeshStandardMaterial({ color: droneColors[i], metalness: 0.9, roughness: 0.1 });
@@ -256,15 +477,13 @@ class DubaiBoard3D {
       
       this.scene.add(droneGroup);
       
-      // Animate drone bobbing
       this.animatedObjects.push({
         obj: droneGroup,
         type: 'bob',
         speed: 2 + Math.random(),
-        amp: 1.5,
+        amp: 1.2,
         baseY: droneGroup.position.y
       });
-      // Also slowly rotate it
       this.animatedObjects.push({
         obj: droneGroup,
         type: 'rotateY',
@@ -275,38 +494,52 @@ class DubaiBoard3D {
 
   // ── 🏡 BIOME 3: Suburbia & Family ─────────────────────────────
   buildSuburbiaBiome(cx, cy, cz) {
-    // Suburban Green lawn plate
-    const subLawnGeo = new THREE.CylinderGeometry(30, 32, 0.4, 32);
-    const subLawnMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.9 });
-    const subLawn = new THREE.Mesh(subLawnGeo, subLawnMat);
-    subLawn.position.set(cx, 1.208, cz);
-    subLawn.receiveShadow = true;
-    this.scene.add(subLawn);
+    // Cozy Family Villas (Procedural)
+    this.createSuburbanHouse(cx - 8, 2.0, cz - 8, 0xfbbf24, 0xe11d48); // Yellow villa, red roof
+    this.createSuburbanHouse(cx + 8, 2.0, cz - 4, 0xffffff, 0x2563eb); // White villa, blue roof
+    this.createSuburbanHouse(cx - 4, 2.0, cz + 10, 0xf3f4f6, 0xd97706); // Modern grey villa
+    this.createSuburbanHouse(cx + 10, 2.0, cz + 8, 0xfce7f3, 0x9333ea); // Pink villa
 
-    // Cozy Family Villas
-    this.createSuburbanHouse(cx - 8, 1.4, cz - 8, 0xfbbf24, 0xe11d48); // Yellow villa, red roof
-    this.createSuburbanHouse(cx + 8, 1.4, cz - 4, 0xffffff, 0x2563eb); // White villa, blue roof
-    this.createSuburbanHouse(cx - 4, 1.4, cz + 10, 0xf3f4f6, 0xd97706); // Modern grey villa
-    this.createSuburbanHouse(cx + 10, 1.4, cz + 8, 0xfce7f3, 0x9333ea); // Pink villa
+    // Real 3D GLB Suburban Villas
+    this.spawnGLBModel('house_a', cx - 14, 2.0, cz - 14, 2.2, 0.3);
+    this.spawnGLBModel('house_b', cx + 14, 2.0, cz - 10, 2.2, -0.2);
+    this.spawnGLBModel('house_a', cx - 12, 2.0, cz + 16, 2.0, 1.1);
+    this.spawnGLBModel('house_b', cx + 14, 2.0, cz + 14, 2.0, -0.8);
+
+    // Additional Suburban Villas expanding the neighborhood
+    this.spawnGLBModel('house_a', cx + 20, 2.0, cz - 14, 2.2, 0.4);
+    this.spawnGLBModel('house_b', cx + 26, 2.0, cz + 4, 2.2, -0.5);
+    this.spawnGLBModel('house_a', cx + 32, 2.0, cz + 2, 2.3, 0.8);
+    this.spawnGLBModel('house_b', cx + 18, 2.0, cz + 22, 2.1, -0.9);
+    this.spawnGLBModel('house_a', cx + 26, 2.0, cz - 22, 2.2, 0.1);
+    this.spawnGLBModel('house_b', cx + 36, 2.0, cz - 12, 2.3, -0.3);
+
+    // Suburban Swimming Pools
+    const poolGeo = new THREE.BoxGeometry(6.5, 0.3, 4.2);
+    const poolMat = new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.15, metalness: 0.65 });
+    const pool1 = new THREE.Mesh(poolGeo, poolMat);
+    pool1.position.set(cx + 22, 2.05, cz - 2);
+    this.scene.add(pool1);
+
+    const pool2 = new THREE.Mesh(poolGeo, poolMat);
+    pool2.position.set(cx + 28, 2.05, cz + 16);
+    this.scene.add(pool2);
+
+    this.spawnGLBModel('tree_1', cx - 8, 2.0, cz + 6, 0.85);
+    this.spawnGLBModel('tree_pine', cx + 8, 2.0, cz + 4, 0.95);
+    this.spawnGLBModel('tree_1', cx + 34, 2.0, cz + 14, 0.9);
+    this.spawnGLBModel('tree_pine', cx + 30, 2.0, cz - 18, 1.0);
 
     // Flowering Garden Trees & Shrubs
     const gardenTrees = [
       [cx - 14, cz - 4], [cx + 14, cz - 12], [cx - 12, cz + 6],
-      [cx + 15, cz + 3], [cx + 3, cz - 12]
+      [cx + 15, cz + 3], [cx + 3, cz - 12], [cx + 24, cz + 10]
     ];
-    gardenTrees.forEach(p => this.createCampusTree(p[0], 1.4, p[1], 0xf472b6)); // Cherry blossom pink
+    gardenTrees.forEach(p => this.createCampusTree(p[0], 2.0, p[1], 0xf472b6)); // Cherry blossom pink
   }
 
   // ── 🎰 BIOME 4: Casino & Crypto Dunes ─────────────────────────
   buildCasinoBiome(cx, cy, cz) {
-    // Golden Sand / Casino Plaza
-    const casinoPlazaGeo = new THREE.CylinderGeometry(28, 30, 0.4, 32);
-    const casinoPlazaMat = new THREE.MeshStandardMaterial({ color: 0xca8a04, roughness: 0.5, metalness: 0.4 });
-    const casinoPlaza = new THREE.Mesh(casinoPlazaGeo, casinoPlazaMat);
-    casinoPlaza.position.set(cx, 1.212, cz);
-    casinoPlaza.receiveShadow = true;
-    this.scene.add(casinoPlaza);
-
     // Luxor-Style Golden Pyramid Casino
     const pyramidGeo = new THREE.ConeGeometry(13, 14, 4);
     const pyramidMat = new THREE.MeshStandardMaterial({
@@ -315,24 +548,36 @@ class DubaiBoard3D {
       roughness: 0.15
     });
     const pyramid = new THREE.Mesh(pyramidGeo, pyramidMat);
-    pyramid.position.set(cx - 6, 8.4, cz - 4);
+    pyramid.position.set(cx - 6, 9.0, cz - 4);
     pyramid.rotation.y = Math.PI / 4;
     pyramid.castShadow = true;
     this.scene.add(pyramid);
 
     // Apex laser light beam atop Pyramid
     const beamGeo = new THREE.CylinderGeometry(0.3, 0.8, 30, 16);
-    beamGeo.translate(0, 15, 0); // Shift origin to the base
+    beamGeo.translate(0, 15, 0);
     const beamMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 });
     const beam = new THREE.Mesh(beamGeo, beamMat);
-    beam.position.set(cx - 6, 14, cz - 4);
-    beam.rotation.z = 0.15; // Tilt slightly to sweep around
+    beam.position.set(cx - 6, 14.5, cz - 4);
+    beam.rotation.z = 0.15;
     this.scene.add(beam);
     this.animatedObjects.push({ obj: beam, type: 'rotateY', speed: -0.015 });
 
+    // Luxury Casino Resort Wings using stylish GLB buildings (safe positions away from track)
+    this.spawnGLBModel('bldg_c', cx - 16, 2.0, cz - 16, 3.8, 0.4);
+    this.spawnGLBModel('bldg_d', cx + 10, 2.0, cz + 16, 3.6, -0.6);
+
+    // Casino Fountain Pool
+    const fountainPool = new THREE.Mesh(
+      new THREE.CylinderGeometry(4.5, 4.5, 0.4, 24),
+      new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.1, metalness: 0.8 })
+    );
+    fountainPool.position.set(cx - 6, 2.1, cz + 10);
+    this.scene.add(fountainPool);
+
     // Giant Rotating 3D Bitcoin Sculpture
     const btcGroup = new THREE.Group();
-    btcGroup.position.set(cx + 8, 5, cz + 6);
+    btcGroup.position.set(cx + 8, 5.5, cz + 6);
     const coinGeo = new THREE.CylinderGeometry(3.5, 3.5, 0.7, 32);
     const coinMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.95, roughness: 0.1 });
     const coin = new THREE.Mesh(coinGeo, coinMat);
@@ -350,34 +595,28 @@ class DubaiBoard3D {
     this.animatedObjects.push({ obj: coin, type: 'rotateY', speed: 0.025 });
 
     // Neon Palms (Hot Pink & Cyan glowing palms)
-    this.createNeonPalm(cx - 14, 1.4, cz + 8, 0x06b6d4);
-    this.createNeonPalm(cx + 6, 1.4, cz - 12, 0xec4899);
-    this.createNeonPalm(cx - 4, 1.4, cz + 14, 0xa855f7);
+    this.createNeonPalm(cx - 14, 2.0, cz + 8, 0x06b6d4);
+    this.createNeonPalm(cx + 6, 2.0, cz - 12, 0xec4899);
+    this.createNeonPalm(cx - 4, 2.0, cz + 14, 0xa855f7);
+    this.createNeonPalm(cx - 18, 2.0, cz - 18, 0x06b6d4);
+    this.createNeonPalm(cx + 12, 2.0, cz - 4, 0xf59e0b);
   }
 
   // ── 🏝️ BIOME 5: Retirement Paradise Beach ──────────────────────
   buildBeachBiome(cx, cy, cz) {
-    // Warm Sand Shore
-    const beachGeo = new THREE.CylinderGeometry(32, 34, 0.4, 32);
-    const beachMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.9 });
-    const beach = new THREE.Mesh(beachGeo, beachMat);
-    beach.position.set(cx, 1.216, cz);
-    beach.receiveShadow = true;
-    this.scene.add(beach);
-
     // Tropical Curved Palm Trees
     const palms = [
       [cx - 16, cz + 4], [cx - 8, cz + 12], [cx + 12, cz + 8],
       [cx + 18, cz - 2], [cx - 2, cz + 16]
     ];
-    palms.forEach(p => this.createTropicalPalm(p[0], 1.4, p[1]));
+    palms.forEach(p => this.createTropicalPalm(p[0], 2.0, p[1]));
 
     // Luxury Super-Yacht in the bay
     this.createSuperYacht(cx - 28, 0, cz + 24, 0.75);
 
     // Grand Golden Finish Arch at node 76
     const archGroup = new THREE.Group();
-    archGroup.position.set(cx + 20, 1.4, cz - 2);
+    archGroup.position.set(cx + 20, 2.0, cz - 2);
 
     const archGeo = new THREE.TorusGeometry(4.5, 0.6, 16, 32, Math.PI);
     const archMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.1 });
@@ -396,60 +635,259 @@ class DubaiBoard3D {
     this.scene.add(archGroup);
   }
 
+  // ── 🌍 World Landmarks, Coastal Beacons & Dense Forests ────────
+  buildWorldLandmarks() {
+    // 1. Coastal Lighthouse on rocky bluff (North-West coast)
+    const lhGroup = new THREE.Group();
+    lhGroup.position.set(-115, 2.0, 68);
+    const lhBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(4.5, 6, 4, 16),
+      new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 })
+    );
+    lhBase.position.y = 2;
+    lhGroup.add(lhBase);
+
+    const lhTower = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.2, 3.8, 18, 16),
+      new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.3 })
+    );
+    lhTower.position.y = 13;
+    lhTower.castShadow = true;
+    lhGroup.add(lhTower);
+
+    // Red stripes
+    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
+    const stripe1 = new THREE.Mesh(new THREE.CylinderGeometry(3.3, 3.5, 3.2, 16), stripeMat);
+    stripe1.position.y = 9;
+    lhGroup.add(stripe1);
+    const stripe2 = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.7, 3.2, 16), stripeMat);
+    stripe2.position.y = 16;
+    lhGroup.add(stripe2);
+
+    // Lantern Room & Rotating Searchlight Beam
+    const lantern = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.2, 2.2, 3.5, 16),
+      new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xfacc15, emissiveIntensity: 0.6 })
+    );
+    lantern.position.y = 23.5;
+    lhGroup.add(lantern);
+
+    const beamCone = new THREE.Mesh(
+      new THREE.ConeGeometry(8, 45, 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
+    );
+    beamCone.rotation.x = Math.PI / 2;
+    beamCone.position.set(0, 23.5, 22);
+    lhGroup.add(beamCone);
+    this.animatedObjects.push({ obj: beamCone, type: 'rotateY', speed: 0.02 });
+
+    this.scene.add(lhGroup);
+
+    // 2. Dense Pine & Deciduous Forests across open spaces
+    const forestSpots = [
+      // Northern woods
+      [-20, -78], [0, -82], [22, -80], [-40, -76], [40, -76],
+      // Eastern coastal glades
+      [115, -20], [120, 5], [115, 30], [110, 55],
+      // Western mountains
+      [-120, -15], [-115, 10], [-118, 35],
+      // South-eastern woodlands
+      [75, 75], [90, 65], [60, 80],
+      // Central park groves
+      [-25, -20], [25, -20], [-25, 20], [25, 20]
+    ];
+    forestSpots.forEach(([fx, fz], idx) => {
+      const key = (idx % 2 === 0) ? 'tree_pine' : 'tree_1';
+      const scale = 0.85 + (idx % 5) * 0.12;
+      const rot = (idx * 1.3) % (Math.PI * 2);
+      this.spawnGLBModel(key, fx, 2.0, fz, scale, rot);
+      // Small companion tree
+      const compKey = (idx % 2 === 0) ? 'tree_1' : 'tree_pine';
+      this.spawnGLBModel(compKey, fx + 3.2, 2.0, fz + 2.8, scale * 0.8, rot + 1.2);
+    });
+
+    // 3. Beach Resort Cabanas & Umbrellas
+    const beachCabanas = [
+      [-18, 86], [18, 86], [-35, 82], [35, 82]
+    ];
+    beachCabanas.forEach(([bx, bz], i) => {
+      const cabana = new THREE.Mesh(
+        new THREE.ConeGeometry(2.5, 2.2, 6),
+        new THREE.MeshStandardMaterial({ color: (i % 2 === 0 ? 0x0284c7 : 0xf97316), roughness: 0.7 })
+      );
+      cabana.position.set(bx, 3.1, bz);
+      this.scene.add(cabana);
+    });
+  }
+
   // ── 🎡 3D Physical Spinner Wheel (Spiel des Lebens Centerpiece) ──
   build3DSpinnerWheel(cx, cy, cz) {
     const group = new THREE.Group();
     group.position.set(cx, cy, cz);
 
+    // 0. Grand Elevated Marble & Gold Plaza Base (Iconic Centerpiece Island)
+    const plazaGeo = new THREE.CylinderGeometry(16.5, 18.2, 1.4, 48);
+    const plazaMat = new THREE.MeshStandardMaterial({
+      color: 0xf8fafc, // Pure gleaming Carrara marble
+      roughness: 0.15,
+      metalness: 0.25
+    });
+    const plaza = new THREE.Mesh(plazaGeo, plazaMat);
+    plaza.position.y = 0.7;
+    plaza.receiveShadow = true;
+    group.add(plaza);
+
+    // Plaza Golden Inlay Ring
+    const goldInlayGeo = new THREE.TorusGeometry(15.2, 0.35, 16, 48);
+    const goldInlayMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.95, roughness: 0.1 });
+    const goldInlay = new THREE.Mesh(goldInlayGeo, goldInlayMat);
+    goldInlay.rotation.x = Math.PI / 2;
+    goldInlay.position.y = 1.42;
+    group.add(goldInlay);
+
+    // 4 Grand Decorative Fluted Pillars with glowing crystal orbs at diagonals
+    const pillarPositions = [[-12, -12], [12, -12], [-12, 12], [12, 12]];
+    pillarPositions.forEach(([px, pz]) => {
+      const pColGeo = new THREE.CylinderGeometry(0.7, 0.9, 4.2, 16);
+      const pColMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, metalness: 0.3, roughness: 0.2 });
+      const pCol = new THREE.Mesh(pColGeo, pColMat);
+      pCol.position.set(px, 2.1, pz);
+      pCol.castShadow = true;
+      group.add(pCol);
+
+      const orbGeo = new THREE.SphereGeometry(0.65, 16, 16);
+      const orbMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24 });
+      const orb = new THREE.Mesh(orbGeo, orbMat);
+      orb.position.set(px, 4.5, pz);
+      group.add(orb);
+    });
+
     // 1. Molded plastic base (white fluted podium with gold trim)
-    const baseGeo = new THREE.CylinderGeometry(7.2, 8.0, 1.6, 32);
+    const baseGeo = new THREE.CylinderGeometry(8.2, 9.0, 1.8, 32);
     const baseMat = new THREE.MeshStandardMaterial({
       color: 0xf8fafc,
       roughness: 0.2,
       metalness: 0.15
     });
     const base = new THREE.Mesh(baseGeo, baseMat);
-    base.position.y = 0.8;
+    base.position.y = 1.4 + 0.9;
     base.castShadow = true;
     base.receiveShadow = true;
     group.add(base);
 
     // Golden rim ring
-    const rimGeo = new THREE.TorusGeometry(7.4, 0.35, 16, 32);
+    const rimGeo = new THREE.TorusGeometry(8.4, 0.4, 16, 32);
     const rimMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.92, roughness: 0.15 });
     const rim = new THREE.Mesh(rimGeo, rimMat);
     rim.rotation.x = Math.PI / 2;
-    rim.position.y = 1.6;
+    rim.position.y = 1.4 + 1.8;
     group.add(rim);
 
     // 2. The Rotating Wheel Rotor
     const wheelRotor = new THREE.Group();
-    wheelRotor.position.y = 1.65;
+    wheelRotor.position.y = 1.4 + 1.85;
 
-    const sectorColors = [
-      0xef4444, 0xf97316, 0xf59e0b, 0x10b981, 0x06b6d4,
-      0x3b82f6, 0x6366f1, 0xa855f7, 0xec4899, 0xeab308
+    const sectorColorsHex = [
+      '#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4',
+      '#3b82f6', '#6366f1', '#a855f7', '#ec4899', '#eab308'
     ];
     const numSectors = 10;
     const arc = (Math.PI * 2) / numSectors;
 
-    for (let i = 0; i < numSectors; i++) {
-      const wedgeGeo = new THREE.CylinderGeometry(7.0, 7.0, 0.35, 16, 1, false, i * arc, arc);
-      const wedgeMat = new THREE.MeshStandardMaterial({
-        color: sectorColors[i],
-        roughness: 0.35,
-        metalness: 0.25
-      });
-      const wedge = new THREE.Mesh(wedgeGeo, wedgeMat);
-      wedge.castShadow = true;
-      wheelRotor.add(wedge);
+    // High-Definition 2048x2048 Numbered Dial Texture
+    const dialCanvas = document.createElement('canvas');
+    dialCanvas.width = 2048;
+    dialCanvas.height = 2048;
+    const ctx = dialCanvas.getContext('2d');
+    const cxD = 1024, cyD = 1024, rOut = 990, rIn = 300;
 
-      // White Peg studs along sector edges
-      const pegGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.6, 8);
-      const pegMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.85, roughness: 0.1 });
+    for (let i = 0; i < numSectors; i++) {
+      const aStart = i * arc;
+      const aEnd = (i + 1) * arc;
+      const aMid = aStart + arc / 2;
+
+      // Draw sector wedge on dial
+      ctx.beginPath();
+      ctx.moveTo(cxD, cyD);
+      ctx.arc(cxD, cyD, rOut, -aStart, -aEnd, true);
+      ctx.closePath();
+      ctx.fillStyle = sectorColorsHex[i];
+      ctx.fill();
+
+      // Divider line
+      ctx.beginPath();
+      ctx.moveTo(cxD, cyD);
+      ctx.lineTo(cxD + Math.cos(-aStart) * rOut, cyD + Math.sin(-aStart) * rOut);
+      ctx.lineWidth = 12;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+
+      // Outer gold rim arc
+      ctx.beginPath();
+      ctx.arc(cxD, cyD, rOut, -aStart, -aEnd, true);
+      ctx.lineWidth = 20;
+      ctx.strokeStyle = '#fef08a';
+      ctx.stroke();
+
+      // Bold white number (1 to 10)
+      const num = i + 1;
+      const numDist = 670;
+      const nx = cxD + Math.cos(-aMid) * numDist;
+      const ny = cyD + Math.sin(-aMid) * numDist;
+
+      ctx.save();
+      ctx.translate(nx, ny);
+      ctx.rotate(-aMid - Math.PI / 2);
+
+      ctx.font = '900 170px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Arial Black", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // Drop shadow for 3D depth
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+      ctx.fillText(`${num}`, 0, 10);
+
+      // Main crisp white text
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`${num}`, 0, 0);
+
+      // Contrast outline
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.strokeText(`${num}`, 0, 0);
+
+      ctx.restore();
+    }
+
+    // Inner chrome border ring
+    ctx.beginPath();
+    ctx.arc(cxD, cyD, rIn, 0, Math.PI * 2);
+    ctx.lineWidth = 24;
+    ctx.strokeStyle = '#f59e0b';
+    ctx.stroke();
+
+    const dialTex = new THREE.CanvasTexture(dialCanvas);
+    dialTex.anisotropy = 8;
+    const dialMat = new THREE.MeshStandardMaterial({
+      map: dialTex,
+      roughness: 0.22,
+      metalness: 0.12
+    });
+    const dialGeo = new THREE.CircleGeometry(6.94, 64);
+    const dialMesh = new THREE.Mesh(dialGeo, dialMat);
+    dialMesh.rotation.x = -Math.PI / 2;
+    dialMesh.position.y = 0.36;
+    dialMesh.receiveShadow = true;
+    wheelRotor.add(dialMesh);
+
+    // Chrome Peg studs along sector edges
+    for (let i = 0; i < numSectors; i++) {
+      const pegGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.65, 8);
+      const pegMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.9, roughness: 0.1 });
       const peg = new THREE.Mesh(pegGeo, pegMat);
       const pegAngle = i * arc;
-      peg.position.set(Math.cos(pegAngle) * 6.4, 0.35, Math.sin(pegAngle) * 6.4);
+      peg.position.set(Math.cos(pegAngle) * 6.45, 0.45, Math.sin(pegAngle) * 6.45);
+      peg.castShadow = true;
       wheelRotor.add(peg);
     }
 
@@ -476,12 +914,12 @@ class DubaiBoard3D {
 
     // 3. Pointer Needle (Flexes dynamically when spinning)
     const pointerGroup = new THREE.Group();
-    pointerGroup.position.set(0, 2.1, 6.7);
-    const needleGeo = new THREE.ConeGeometry(0.55, 1.9, 4);
-    const needleMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.7, roughness: 0.2 });
+    pointerGroup.position.set(0, 1.4 + 2.15, 7.6);
+    const needleGeo = new THREE.ConeGeometry(0.65, 2.2, 4);
+    const needleMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.8, roughness: 0.2 });
     const needle = new THREE.Mesh(needleGeo, needleMat);
     needle.rotation.x = Math.PI / 2;
-    needle.position.z = -0.75;
+    needle.position.z = -0.9;
     pointerGroup.add(needle);
     group.add(pointerGroup);
     this.boardWheelPointer = pointerGroup;
@@ -489,38 +927,209 @@ class DubaiBoard3D {
     this.scene.add(group);
   }
 
-  spinBoardWheel(spinValue, velocity = 1) {
-    if (!this.boardWheelRotor) return;
+  spinBoardWheel(spinValue, velocity = 1, onComplete) {
+    if (!this.boardWheelRotor) {
+      if (onComplete) onComplete({ spinValue });
+      return;
+    }
     const numSectors = 10;
-    const arc = (Math.PI * 2) / numSectors;
+    const twoPi = Math.PI * 2;
+    const arc = twoPi / numSectors;
     const sectorIndex = (spinValue - 1 + numSectors) % numSectors;
-    const targetAngle = -sectorIndex * arc;
-    const rotations = Math.min(6, Math.max(3, Math.round(velocity * 1.3)));
-    const finalAngle = this.boardWheelRotor.rotation.y + rotations * Math.PI * 2 + targetAngle;
-    const duration = Math.min(3200, Math.max(1800, 1600 + velocity * 200));
-    const startAngle = this.boardWheelRotor.rotation.y;
+    const aMid = sectorIndex * arc + arc / 2;
+
+    // Pointer is at (0, y, +Z), which is angle +PI/2 in the X-Z plane.
+    // In dialMesh (rotation.x = -PI/2), sector aMid rotates by R in Y,
+    // placing its 3D angle at -aMid - R.
+    // To align with pointer: -aMid - R = PI/2 => R = 1.5 * PI - aMid.
+    const targetRotorAngle = ((1.5 * Math.PI - aMid) % twoPi + twoPi) % twoPi;
+    const currentAngle = this.boardWheelRotor.rotation.y;
+
+    let delta = (targetRotorAngle - (currentAngle % twoPi)) % twoPi;
+    if (delta <= 0) delta += twoPi;
+
+    const extraSpins = Math.min(6, Math.max(3, Math.round(velocity * 1.3)));
+    const totalRotation = extraSpins * twoPi + delta;
+    const finalAngle = currentAngle + totalRotation;
+    const duration = Math.min(3600, Math.max(2200, 2000 + velocity * 220));
+    const startAngle = currentAngle;
     const startTime = performance.now();
+
+    // 🎥 CINEMATIC CAMERA: Smoothly swoop in and frame the 3D in-game wheel
+    this._userOverride = false;
+    this.isTrackingCar = false;
+    this.targetCameraPos.set(0, 26, 30);
+    this.targetCameraLookAt.set(0, 3.2, 0);
+
+    let lastTickAngle = startAngle;
 
     const anim = (now) => {
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      const ease = 1 - Math.pow(1 - progress, 3);
-      this.boardWheelRotor.rotation.y = startAngle + ease * (finalAngle - startAngle);
+      // Quintic ease-out deceleration
+      const ease = 1 - Math.pow(1 - progress, 4);
+      const curAngle = startAngle + ease * totalRotation;
+      this.boardWheelRotor.rotation.y = curAngle;
 
-      // Realistic needle flap / tick
+      // Needle tick sound & flap when passing peg
+      if (Math.abs(curAngle - lastTickAngle) >= arc) {
+        lastTickAngle = curAngle;
+        if (window.soundEngine) window.soundEngine.play('wheel_tick');
+      }
+
       if (this.boardWheelPointer) {
-        const tickVal = Math.sin(this.boardWheelRotor.rotation.y * 10);
-        this.boardWheelPointer.rotation.x = (Math.PI / 2) + Math.max(0, tickVal) * 0.28;
+        const speed = (1 - progress) * 0.35;
+        const tickFlex = Math.sin(curAngle * 10) * speed;
+        this.boardWheelPointer.rotation.x = (Math.PI / 2) + Math.max(0, tickFlex);
       }
 
       if (progress < 1) {
         requestAnimationFrame(anim);
       } else {
+        this.boardWheelRotor.rotation.y = finalAngle;
         if (this.boardWheelPointer) this.boardWheelPointer.rotation.x = Math.PI / 2;
-        this.spawnConfetti(new THREE.Vector3(0, 4, -4));
+
+        // Confetti explosion on landing
+        this.spawnConfetti(new THREE.Vector3(0, 5.2, 0));
+        if (window.soundEngine) window.soundEngine.play('cheer');
+
+        // Hold focus for 1.1 seconds so players see the winning number
+        setTimeout(() => {
+          if (onComplete) onComplete({ spinValue });
+        }, 1100);
       }
     };
     requestAnimationFrame(anim);
+  }
+
+
+
+  // ── 📦 GLTF 3D Asset Pipeline & Engine ────────────────────────
+  load3DAssets() {
+    if (!THREE.GLTFLoader) {
+      console.warn('[3D Engine] THREE.GLTFLoader not found, falling back to procedural meshes.');
+      return;
+    }
+    const loader = new THREE.GLTFLoader();
+    this.models = {};
+
+    const assets = [
+      { key: 'car_sedan', url: '/models/sedan.glb' },
+      { key: 'car_sports', url: '/models/sedan-sports.glb' },
+      { key: 'car_suv', url: '/models/suv.glb' },
+      { key: 'car_van', url: '/models/van.glb' },
+      { key: 'car_race', url: '/models/race.glb' },
+      { key: 'car_hatch', url: '/models/hatchback-sports.glb' },
+      { key: 'bldg_a', url: '/models/building-a.glb' },
+      { key: 'bldg_b', url: '/models/building-b.glb' },
+      { key: 'bldg_c', url: '/models/building-c.glb' },
+      { key: 'bldg_d', url: '/models/building-d.glb' },
+      { key: 'house_a', url: '/models/house-a.glb' },
+      { key: 'house_b', url: '/models/house-b.glb' },
+      { key: 'tree_1', url: '/models/tree-1.glb' },
+      { key: 'tree_pine', url: '/models/tree-pine.glb' }
+    ];
+
+    assets.forEach(asset => {
+      loader.load(
+        asset.url,
+        (gltf) => {
+          gltf.scene.traverse(node => {
+            if (node.isMesh) {
+              node.castShadow = true;
+              node.receiveShadow = true;
+            }
+          });
+          this.models[asset.key] = gltf.scene;
+
+          // If a car model just loaded, upgrade any active player cars seamlessly
+          if (asset.key.startsWith('car_')) {
+            this.refreshAllCarModels();
+          }
+        },
+        undefined,
+        (err) => {
+          console.warn(`[3D Engine] Could not load ${asset.url}:`, err);
+        }
+      );
+    });
+  }
+
+  attachGLBCarModel(container, player, colorHex) {
+    const preferredKey = player.character && player.character.carModel;
+    const carKeys = ['car_sports', 'car_suv', 'car_hatch', 'car_race', 'car_sedan', 'car_van'];
+    let hash = 0;
+    const keyStr = (player.socketId || player.name || '0');
+    for (let i = 0; i < keyStr.length; i++) hash += keyStr.charCodeAt(i);
+    const chosenKey = (preferredKey && this.models[preferredKey]) ? preferredKey : carKeys[hash % carKeys.length];
+
+    if (!this.models || !this.models[chosenKey]) return false;
+
+    // Clear previous model from container
+    while (container.children.length > 0) container.remove(container.children[0]);
+
+    const cloned = this.models[chosenKey].clone(true);
+    // Rotate 180° so front (+Z in Kenney models) points -Z (forward direction of travel)
+    cloned.rotation.y = Math.PI;
+    // Scale 0.95 fits the wider 4.2 board roads
+    cloned.scale.set(0.95, 0.95, 0.95);
+    cloned.position.y = 0.05;
+
+    // Recolor body parts with player theme color
+    cloned.traverse(child => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        const name = (child.name || '').toLowerCase();
+        if (name.includes('body') || name === 'sedan' || name === 'suv' || name.includes('paint')) {
+          if (child.material) {
+            child.material = child.material.clone();
+            child.material.color.setHex(colorHex);
+            child.material.metalness = 0.65;
+            child.material.roughness = 0.25;
+          }
+        }
+      }
+    });
+
+    container.add(cloned);
+    return true;
+  }
+
+  refreshAllCarModels() {
+    if (!this.cars) return;
+    Object.values(this.cars).forEach(carGroup => {
+      if (carGroup && carGroup.bodyContainer && carGroup.userData && carGroup.userData.player) {
+        const p = carGroup.userData.player;
+        const colorHex = parseInt((p.character.color || '#3b82f6').replace('#', '0x'), 16);
+        this.attachGLBCarModel(carGroup.bodyContainer, p, colorHex);
+      }
+    });
+  }
+
+  spawnGLBModel(key, x, y, z, scale = 1.0, rotY = 0) {
+    const group = new THREE.Group();
+    group.position.set(x, y, z);
+    group.rotation.y = rotY;
+
+    const tryApply = () => {
+      if (this.models && this.models[key]) {
+        const cloned = this.models[key].clone(true);
+        cloned.scale.set(scale, scale, scale);
+        cloned.traverse(child => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+        group.add(cloned);
+      } else {
+        setTimeout(tryApply, 250);
+      }
+    };
+    tryApply();
+    this.scene.add(group);
+    return group;
   }
 
   // ── 3D Asset Helpers ──────────────────────────────────────────
@@ -727,9 +1336,9 @@ class DubaiBoard3D {
   // ── 🛣️ 3D Coordinates & Road Network ─────────────────────────
   mapTo3D(x, y) {
     return new THREE.Vector3(
-      ((x - 50) / 50) * 64, // -64 .. +64
-      1.45,
-      ((y - 50) / 50) * 44  // -44 .. +44
+      ((x - 50) / 50) * 125, // -125 .. +125 (total 250 units wide)
+      2.08,                  // Elevated cleanly above grass terrain (y = 2.0)
+      ((y - 50) / 50) * 95   // -95 .. +95   (total 190 units deep)
     );
   }
 
@@ -760,17 +1369,17 @@ class DubaiBoard3D {
     const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
 
     // Shorten road segment slightly so they don't overlap inside the node pedestals
-    const margin = 1.8;
+    const margin = 2.9;
     const adjustedLen = Math.max(0.1, len - margin * 2);
 
-    // Strict vertical layering to prevent Z-fighting
-    const roadY = p1.y - 0.05;
-    const lineY = p1.y - 0.03;
-    const curbY = p1.y - 0.01;
+    // Strict vertical layering above terrain (terrain is at y = 2.0)
+    const roadY = p1.y + 0.04; // 2.12
+    const curbY = p1.y + 0.10; // 2.18
+    const lineY = p1.y + 0.13; // 2.21
 
     // 1. Dark Road Asphalt Ribbon
-    const roadWidth = 3.2;
-    const roadGeo = new THREE.BoxGeometry(roadWidth, 0.22, adjustedLen);
+    const roadWidth = 4.2;
+    const roadGeo = new THREE.BoxGeometry(roadWidth, 0.16, adjustedLen);
     const roadMat = new THREE.MeshStandardMaterial({
       color: 0x1e293b,
       roughness: 0.65,
@@ -786,8 +1395,8 @@ class DubaiBoard3D {
     this.scene.add(road);
 
     // 2. Beveled Sidewalk Curbs (Left & Right)
-    const curbWidth = 0.26;
-    const curbGeo = new THREE.BoxGeometry(curbWidth, 0.32, adjustedLen);
+    const curbWidth = 0.32;
+    const curbGeo = new THREE.BoxGeometry(curbWidth, 0.24, adjustedLen);
     const curbMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5, metalness: 0.3 });
 
     const leftCurb = new THREE.Mesh(curbGeo, curbMat);
@@ -807,25 +1416,25 @@ class DubaiBoard3D {
     this.scene.add(rightCurb);
 
     // 3. Crisp White Edge Markings
-    const edgeGeo = new THREE.BoxGeometry(0.12, 0.24, adjustedLen);
+    const edgeGeo = new THREE.BoxGeometry(0.16, 0.18, adjustedLen);
     const edgeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
 
     const leftEdge = new THREE.Mesh(edgeGeo, edgeMat);
     leftEdge.position.copy(mid);
     leftEdge.position.y = lineY;
     leftEdge.lookAt(lookTarget);
-    leftEdge.translateX(-roadWidth / 2 + 0.34);
+    leftEdge.translateX(-roadWidth / 2 + 0.45);
     this.scene.add(leftEdge);
 
     const rightEdge = new THREE.Mesh(edgeGeo, edgeMat);
     rightEdge.position.copy(mid);
     rightEdge.position.y = lineY;
     rightEdge.lookAt(lookTarget);
-    rightEdge.translateX(roadWidth / 2 - 0.34);
+    rightEdge.translateX(roadWidth / 2 - 0.45);
     this.scene.add(rightEdge);
 
     // 4. Yellow Dashed Centerline
-    const lineGeo = new THREE.BoxGeometry(0.24, 0.24, adjustedLen * 0.72);
+    const lineGeo = new THREE.BoxGeometry(0.3, 0.18, adjustedLen * 0.72);
     const lineMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3 });
     const line = new THREE.Mesh(lineGeo, lineMat);
     line.position.copy(mid);
@@ -834,16 +1443,17 @@ class DubaiBoard3D {
     this.scene.add(line);
   }
 
-  // ── Tile Pedestals ────────────────────────────────────────────
+  // ── Tile Pedestals (Enlarged & Prominent Circles) ─────────────
   createTilePedestal(pos, node) {
     const group = new THREE.Group();
     group.position.copy(pos);
 
     const isStopTile = node.isStop;
     const isFinish = node.type === 'finish';
-    const radius = isStopTile ? 2.1 : (isFinish ? 2.5 : 1.65);
+    const radius = isStopTile ? 4.2 : (isFinish ? 5.2 : 3.2);
 
-    const discGeo = new THREE.CylinderGeometry(radius, radius + 0.25, isStopTile ? 0.9 : 0.55, 24);
+    const discHeight = isStopTile ? 0.70 : 0.48;
+    const discGeo = new THREE.CylinderGeometry(radius, radius + 0.25, discHeight, 32);
     const colorHex = parseInt((node.color || '#3b82f6').replace('#', '0x'), 16);
     const discMat = new THREE.MeshStandardMaterial({
       color: colorHex,
@@ -851,7 +1461,7 @@ class DubaiBoard3D {
       metalness: 0.65
     });
     const disc = new THREE.Mesh(discGeo, discMat);
-    disc.position.y = 0.28;
+    disc.position.y = discHeight / 2 + 0.02;
     disc.castShadow = true;
     disc.receiveShadow = true;
     group.add(disc);
@@ -862,21 +1472,21 @@ class DubaiBoard3D {
       const stopRingMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
       const stopRing = new THREE.Mesh(stopRingGeo, stopRingMat);
       stopRing.rotation.x = Math.PI / 2;
-      stopRing.position.y = 1.0;
+      stopRing.position.y = discHeight + 0.04;
       group.add(stopRing);
     }
 
     // Inner Chrome Bezel
-    const ringGeo = new THREE.TorusGeometry(radius + 0.12, 0.12, 12, 24);
+    const ringGeo = new THREE.TorusGeometry(radius + 0.12, 0.14, 12, 32);
     const ringMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.9, roughness: 0.1 });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.58;
+    ring.position.y = discHeight + 0.02;
     group.add(ring);
 
     // High-DPI Sprite for Tile Title & Icon
     const sprite = this.createTileSprite(node.icon || '📍', node.title, isStopTile, node.type);
-    sprite.position.set(0, isStopTile ? 3.0 : 2.4, 0);
+    sprite.position.set(0, isStopTile ? 2.4 : (node.type === 'normal' ? 1.6 : 1.9), 0);
     group.add(sprite);
 
     this.scene.add(group);
@@ -901,61 +1511,139 @@ class DubaiBoard3D {
 
   createTileSprite(icon, title, isStop, type) {
     const canvas = document.createElement('canvas');
-    canvas.width = 600;
-    canvas.height = 300;
+    canvas.width = 640;
+    canvas.height = 320;
     const ctx = canvas.getContext('2d');
 
-    // Background Badge with vibrant 3D gradient
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, 300);
-    if (isStop) {
-      bgGrad.addColorStop(0, 'rgba(220, 38, 38, 0.95)');
-      bgGrad.addColorStop(1, 'rgba(127, 29, 29, 0.95)');
-    } else if (type === 'payday') {
-      bgGrad.addColorStop(0, 'rgba(22, 163, 74, 0.95)');
-      bgGrad.addColorStop(1, 'rgba(20, 83, 45, 0.95)');
-    } else {
-      bgGrad.addColorStop(0, 'rgba(30, 41, 59, 0.92)');
-      bgGrad.addColorStop(1, 'rgba(15, 23, 42, 0.96)');
-    }
+    // Per-type color themes
+    const themes = {
+      payday:    { bg0: '#064e3b', bg1: '#14532d', border: '#4ade80', label: '#86efac', labelBg: '#052e16' },
+      action:    { bg0: '#4a044e', bg1: '#701a75', border: '#d946ef', label: '#f0abfc', labelBg: '#3b0764' },
+      career:    { bg0: '#1e3a5f', bg1: '#1e40af', border: '#60a5fa', label: '#bfdbfe', labelBg: '#172554' },
+      family:    { bg0: '#4c0519', bg1: '#881337', border: '#fb7185', label: '#fecdd3', labelBg: '#3b0015' },
+      knowledge: { bg0: '#083344', bg1: '#0e7490', border: '#22d3ee', label: '#a5f3fc', labelBg: '#052b38' },
+      branch:    { bg0: '#431407', bg1: '#92400e', border: '#f59e0b', label: '#fde68a', labelBg: '#361100' },
+      finish:    { bg0: '#134e4a', bg1: '#0f766e', border: '#2dd4bf', label: '#99f6e4', labelBg: '#042f2e' },
+      normal:    { bg0: '#0f172a', bg1: '#1e293b', border: '#38bdf8', label: '#7dd3fc', labelBg: '#0c1322' },
+      start:     { bg0: '#052e16', bg1: '#166534', border: '#4ade80', label: '#86efac', labelBg: '#052e16' },
+      house:     { bg0: '#2e1065', bg1: '#5b21b6', border: '#c084fc', label: '#e9d5ff', labelBg: '#1a0040' },
+    };
+    const theme = themes[type] || themes.normal;
+    const stopTheme = { bg0: '#450a0a', bg1: '#7f1d1d', border: '#ef4444', label: '#fca5a5', labelBg: '#3b0101' };
+    const t = isStop ? stopTheme : theme;
+
+    // Background card
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, 320);
+    bgGrad.addColorStop(0, t.bg0);
+    bgGrad.addColorStop(1, t.bg1);
+
+    // Card with beveled corners
     ctx.fillStyle = bgGrad;
-    ctx.strokeStyle = isStop ? '#fca5a5' : (type === 'payday' ? '#4ade80' : '#38bdf8');
-    ctx.lineWidth = 10;
+    ctx.strokeStyle = t.border;
+    ctx.lineWidth = isStop ? 8 : 5;
     ctx.beginPath();
-    this.drawRoundedRect(ctx, 16, 16, 568, 268, 40);
+    this.drawRoundedRect(ctx, 10, 10, 620, 300, 36);
     ctx.fill();
     ctx.stroke();
 
-    // Large Crisp Icon
-    ctx.font = '86px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif';
+    // Inner subtle highlight
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    this.drawRoundedRect(ctx, 14, 14, 612, 120, 30);
+    ctx.fill();
+    ctx.restore();
+
+    // Type label badge (top-left)
+    const typeLabel = isStop ? '★ STOP' : (type || 'tile').toUpperCase();
+    const badgeW = ctx.measureText(typeLabel).width + 40;
+    ctx.fillStyle = t.labelBg;
+    ctx.strokeStyle = t.border;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    this.drawRoundedRect(ctx, 22, 22, Math.min(badgeW, 180), 36, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = t.label;
+    ctx.font = `700 18px -apple-system, "SF Pro Text", "Inter", sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(typeLabel, 32, 40);
+
+    // Large Icon
+    ctx.font = `80px -apple-system, "SF Pro Text", "Inter", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(icon, 300, 105);
+    ctx.fillText(icon, 320, 145);
 
-    // Bold Title
+    // Title
     ctx.fillStyle = '#ffffff';
-    ctx.font = `800 ${isStop ? 40 : 36}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif`;
-    ctx.fillText(title.substring(0, 14), 300, 195);
+    ctx.font = `900 ${isStop ? 36 : 32}px -apple-system, "SF Pro Text", "Inter", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 8;
+    ctx.fillText(title.substring(0, 16), 320, 248);
+    ctx.shadowBlur = 0;
 
-    if (isStop) {
-      ctx.fillStyle = '#ef4444';
-      ctx.font = '800 24px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif';
-      ctx.fillText('★ STOP DECISION ★', 300, 246);
-    }
+    // Bottom glow bar
+    const barGrad = ctx.createLinearGradient(0, 290, 640, 290);
+    barGrad.addColorStop(0, 'transparent');
+    barGrad.addColorStop(0.5, t.border + '88');
+    barGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = barGrad;
+    ctx.fillRect(10, 290, 620, 6);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
-    const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+    const spriteMat = new THREE.SpriteMaterial({
+      map: texture,
+      depthTest: true,
+      depthWrite: false
+    });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(isStop ? 4.8 : 3.8, isStop ? 2.4 : 1.9, 1);
+    if (isStop) {
+      sprite.scale.set(4.2, 2.1, 1);
+    } else if (type === 'normal') {
+      sprite.scale.set(2.4, 1.2, 1);
+    } else {
+      sprite.scale.set(3.2, 1.6, 1);
+    }
     return sprite;
   }
 
-  // ── 🏎️ Classic "Spiel des Lebens" Convertible Peg-Car ─────────
+
+  // ── 🏎️ 3D Player Vehicle (GLTF 3D Car + Peg Figurines) ────────
   create3DCar(player) {
     const carGroup = new THREE.Group();
+    carGroup.userData = { player };
     const colorHex = parseInt((player.character.color || '#3b82f6').replace('#', '0x'), 16);
 
-    // 1. Sleek Convertible Chassis
+    // Dynamic Car Body Container (supports instant swapping to real GLB model)
+    const bodyContainer = new THREE.Group();
+    carGroup.bodyContainer = bodyContainer;
+    carGroup.add(bodyContainer);
+
+    const attached = this.attachGLBCarModel(bodyContainer, player, colorHex);
+    if (!attached) {
+      this.buildProceduralCarBody(bodyContainer, colorHex, carGroup);
+    }
+
+    // Figure Pegs (Spielfiguren!)
+    carGroup.pegsGroup = new THREE.Group();
+    carGroup.add(carGroup.pegsGroup);
+    this.updateCarPegs(carGroup, player);
+
+    // Floating Player Name Badge
+    this.attachPlayerNameBadge(carGroup, player);
+
+    this.scene.add(carGroup);
+    return carGroup;
+  }
+
+  buildProceduralCarBody(container, colorHex, carGroup) {
     const chassisGeo = new THREE.BoxGeometry(1.7, 0.55, 3.4);
     const chassisMat = new THREE.MeshStandardMaterial({
       color: colorHex,
@@ -965,16 +1653,14 @@ class DubaiBoard3D {
     const chassis = new THREE.Mesh(chassisGeo, chassisMat);
     chassis.position.y = 0.55;
     chassis.castShadow = true;
-    carGroup.add(chassis);
+    container.add(chassis);
 
-    // 2. Interior Cockpit Tub
     const tubGeo = new THREE.BoxGeometry(1.3, 0.35, 2.0);
     const tubMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
     const tub = new THREE.Mesh(tubGeo, tubMat);
     tub.position.set(0, 0.7, -0.1);
-    carGroup.add(tub);
+    container.add(tub);
 
-    // 3. Transparent Windshield
     const shieldGeo = new THREE.BoxGeometry(1.35, 0.45, 0.08);
     const shieldMat = new THREE.MeshStandardMaterial({
       color: 0x93c5fd,
@@ -986,9 +1672,8 @@ class DubaiBoard3D {
     const shield = new THREE.Mesh(shieldGeo, shieldMat);
     shield.position.set(0, 1.05, -0.9);
     shield.rotation.x = -Math.PI / 7;
-    carGroup.add(shield);
+    container.add(shield);
 
-    // 4. Wheels with Silver Rims
     const wheelGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.26, 16);
     const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.9 });
     const rimMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.95, roughness: 0.1 });
@@ -998,7 +1683,7 @@ class DubaiBoard3D {
       [-0.92, 0.34, -0.95],
       [0.92, 0.34, -0.95]
     ];
-    carGroup.wheels = [];
+    if (carGroup) carGroup.wheels = [];
     wheelPositions.forEach(wp => {
       const wheelGroup = new THREE.Group();
       wheelGroup.position.set(...wp);
@@ -1012,31 +1697,26 @@ class DubaiBoard3D {
       rim.rotation.z = Math.PI / 2;
       wheelGroup.add(rim);
 
-      carGroup.add(wheelGroup);
-      carGroup.wheels.push(wheelGroup);
+      container.add(wheelGroup);
+      if (carGroup && carGroup.wheels) carGroup.wheels.push(wheelGroup);
     });
 
-    // 5. LED Headlights & Taillights
     const lightGeo = new THREE.BoxGeometry(0.3, 0.15, 0.1);
     const headMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
     [-0.55, 0.55].forEach(x => {
       const light = new THREE.Mesh(lightGeo, headMat);
       light.position.set(x, 0.55, -1.72);
-      carGroup.add(light);
+      container.add(light);
     });
     const tailMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
     [-0.55, 0.55].forEach(x => {
       const light = new THREE.Mesh(lightGeo, tailMat);
       light.position.set(x, 0.55, 1.72);
-      carGroup.add(light);
+      container.add(light);
     });
+  }
 
-    // 6. Figure Pegs (Spielfiguren!)
-    carGroup.pegsGroup = new THREE.Group();
-    carGroup.add(carGroup.pegsGroup);
-    this.updateCarPegs(carGroup, player);
-
-    // 7. Player Name Badge
+  attachPlayerNameBadge(carGroup, player) {
     const nc = document.createElement('canvas');
     nc.width = 256; nc.height = 70;
     const nCtx = nc.getContext('2d');
@@ -1057,9 +1737,6 @@ class DubaiBoard3D {
     nameSprite.scale.set(3.2, 0.9, 1);
     nameSprite.position.set(0, 2.7, 0);
     carGroup.add(nameSprite);
-
-    this.scene.add(carGroup);
-    return carGroup;
   }
 
   // Helper to create a cute Spiel des Lebens Peg figurine
@@ -1096,13 +1773,13 @@ class DubaiBoard3D {
     const pColor = parseInt((player.character.color || '#3b82f6').replace('#', '0x'), 16);
     // 1. Driver Peg (Front-Left)
     const driverPeg = this.createPeg(pColor, 1.0);
-    driverPeg.position.set(-0.32, 0.75, -0.2);
+    driverPeg.position.set(-0.32, 1.05, -0.2);
     carGroup.pegsGroup.add(driverPeg);
 
     // 2. Spouse Peg (Front-Right if married)
     if (player.assets && player.assets.spouse) {
       const spousePeg = this.createPeg(0xf43f5e, 1.0); // Pink/Red for spouse
-      spousePeg.position.set(0.32, 0.75, -0.2);
+      spousePeg.position.set(0.32, 1.05, -0.2);
       carGroup.pegsGroup.add(spousePeg);
     }
 
@@ -1110,12 +1787,12 @@ class DubaiBoard3D {
     const numKids = (player.assets && player.assets.children) ? Math.min(player.assets.children, 2) : 0;
     if (numKids >= 1) {
       const kid1 = this.createPeg(0x38bdf8, 0.75); // Light blue mini peg
-      kid1.position.set(-0.3, 0.75, 0.5);
+      kid1.position.set(-0.3, 1.02, 0.5);
       carGroup.pegsGroup.add(kid1);
     }
     if (numKids >= 2) {
       const kid2 = this.createPeg(0xfacc15, 0.75); // Yellow mini peg
-      kid2.position.set(0.3, 0.75, 0.5);
+      kid2.position.set(0.3, 1.02, 0.5);
       carGroup.pegsGroup.add(kid2);
     }
   }
@@ -1148,7 +1825,7 @@ class DubaiBoard3D {
         const idxOnNode = listOnNode.findIndex(p => p.socketId === player.socketId);
         const offset = listOnNode.length > 1 ? (nodeOffsets[idxOnNode] || { x: 0, z: 0 }) : { x: 0, z: 0 };
 
-        car.position.set(targetNode.pos.x + offset.x, targetNode.pos.y + 0.32, targetNode.pos.z + offset.z);
+        car.position.set(targetNode.pos.x + offset.x, 2.45, targetNode.pos.z + offset.z);
       }
     });
   }
@@ -1242,7 +1919,9 @@ class DubaiBoard3D {
     if (!targetData) return;
 
     const startPos = car.position.clone();
-    const endPos = new THREE.Vector3(targetData.pos.x, targetData.pos.y + 0.32, targetData.pos.z);
+    // Road/tile surface is at y=2.08 + road ribbon 0.16 + car offset → drive at 2.45
+    const DRIVE_Y = 2.45;
+    const endPos = new THREE.Vector3(targetData.pos.x, DRIVE_Y, targetData.pos.z);
 
     // Calculate heading direction
     const travelDir = new THREE.Vector3().subVectors(endPos, startPos).normalize();
@@ -1275,8 +1954,8 @@ class DubaiBoard3D {
         const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
         car.position.lerpVectors(startPos, endPos, ease);
-        // Playful bounce during driving
-        car.position.y = startPos.y + Math.sin(progress * Math.PI) * 0.55;
+        // Smooth arc hop – peak at midpoint, always stay ABOVE road (min y = DRIVE_Y)
+        car.position.y = Math.max(DRIVE_Y, DRIVE_Y + Math.sin(progress * Math.PI) * 0.6);
 
         // Spin wheels
         if (car.wheels) {
@@ -1295,28 +1974,29 @@ class DubaiBoard3D {
     });
   }
 
+
   delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  // ── 🎥 Camera System & Views ──────────────────────────────────
+  // ── 🎥 Camera System & Views (Vogelperspektive) ───────────────
   resetCamera() {
     setTimeout(() => {
       this.isTrackingCar = false;
-      if (this.cameraMode === 'overview') {
-        this.targetCameraPos.set(0, 68, 86);
+      if (this.cameraMode === 'chase') {
+        this.targetCameraPos.set(0, 95, 110);
       } else {
-        this.targetCameraPos.set(0, 52, 68);
+        this.targetCameraPos.set(0, 165, 80);
       }
-      this.targetCameraLookAt.set(0, 0, 0);
+      this.targetCameraLookAt.set(0, 0, 8);
     }, 1800);
   }
 
   cameraOverview() {
     this.isTrackingCar = false;
     this.cameraMode = 'overview';
-    this.targetCameraPos.set(0, 68, 86);
-    this.targetCameraLookAt.set(0, 0, 0);
+    this.targetCameraPos.set(0, 165, 80);
+    this.targetCameraLookAt.set(0, 0, 8);
   }
 
   setCameraMode(mode) {
@@ -1325,8 +2005,8 @@ class DubaiBoard3D {
       this.cameraOverview();
     } else {
       this.isTrackingCar = false;
-      this.targetCameraPos.set(0, 52, 68);
-      this.targetCameraLookAt.set(0, 0, 0);
+      this.targetCameraPos.set(0, 95, 110);
+      this.targetCameraLookAt.set(0, 0, 8);
     }
   }
 
@@ -1345,7 +2025,7 @@ class DubaiBoard3D {
     const nodeData = this.node3DPositions.find(n => n.id === nodeId);
     if (!nodeData) return;
     this.isTrackingCar = false;
-    this.targetCameraPos.set(nodeData.pos.x, nodeData.pos.y + 20, nodeData.pos.z + 26);
+    this.targetCameraPos.set(nodeData.pos.x, nodeData.pos.y + 36, nodeData.pos.z + 32);
     this.targetCameraLookAt.copy(nodeData.pos);
   }
 
@@ -1377,24 +2057,43 @@ class DubaiBoard3D {
   animate() {
     requestAnimationFrame(() => this.animate());
 
-    // Continuous dynamic camera lerp
-    if (this.isTrackingCar && this.trackedCar) {
-      const p = this.trackedCar.position;
-      this.targetCameraPos.set(
-        p.x - this.carHeading.x * 15,
-        p.y + 9.5,
-        p.z - this.carHeading.z * 15
-      );
-      this.targetCameraLookAt.set(
-        p.x + this.carHeading.x * 5,
-        p.y + 1.2,
-        p.z + this.carHeading.z * 5
-      );
-    }
+    const isUserControlling = this._userOverride && this.controls;
 
-    this.camera.position.lerp(this.targetCameraPos, 0.045);
-    this.currentCameraLookAt.lerp(this.targetCameraLookAt, 0.055);
-    this.camera.lookAt(this.currentCameraLookAt);
+    // Continuous dynamic camera lerp (only when not user-overriding)
+    if (!isUserControlling) {
+      if (this.isTrackingCar && this.trackedCar) {
+        const p = this.trackedCar.position;
+        if (this.cameraMode === 'overview') {
+          // In Vogelperspektive: Elevated high tracking follow (keeps whole board context)
+          this.targetCameraPos.set(
+            p.x,
+            p.y + 65,
+            p.z + 42
+          );
+          this.targetCameraLookAt.set(
+            p.x,
+            p.y + 1.2,
+            p.z
+          );
+        } else {
+          // Dynamic chase camera
+          this.targetCameraPos.set(
+            p.x - this.carHeading.x * 20,
+            p.y + 12,
+            p.z - this.carHeading.z * 20
+          );
+          this.targetCameraLookAt.set(
+            p.x + this.carHeading.x * 5,
+            p.y + 2,
+            p.z + this.carHeading.z * 5
+          );
+        }
+      }
+
+      this.camera.position.lerp(this.targetCameraPos, 0.045);
+      this.currentCameraLookAt.lerp(this.targetCameraLookAt, 0.055);
+      this.camera.lookAt(this.currentCameraLookAt);
+    }
 
     // Subtle water shimmer
     if (this.waterMesh) {
@@ -1429,12 +2128,19 @@ class DubaiBoard3D {
       }
     });
 
-    if (this.controls && !this.isTrackingCar) {
-      this.controls.target.lerp(this.currentCameraLookAt, 0.05);
-      this.controls.update();
+    // OrbitControls: always update when user is controlling, otherwise sync target
+    if (this.controls) {
+      if (isUserControlling) {
+        this.controls.update();
+      } else if (!this.isTrackingCar) {
+        this.controls.target.lerp(this.currentCameraLookAt, 0.05);
+        this.controls.update();
+      }
     }
+
     this.renderer.render(this.scene, this.camera);
   }
+
 
   onResize() {
     const width = this.container.clientWidth;

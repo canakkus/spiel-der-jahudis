@@ -30,5 +30,11 @@ Ein interaktives Multiplayer-Brettspiel, inspiriert von *The Game of Life 2* auf
    ```
 
 3. **Öffnen:**
-   - **Host Screen (am TV / PC):** `http://localhost:3000/host.html`
-   - **Handy-Controller:** Den angezeigten QR-Code auf dem Host-Screen mit dem Smartphone scannen oder `http://<DEINE-IP>:3000` aufrufen.
+   - **Host Screen (am TV / PC):** `http://localhost:42069/host.html`
+   - **Handy-Controller:** Den angezeigten QR-Code auf dem Host-Screen mit dem Smartphone scannen oder `http://<DEINE-IP>:42069` aufrufen.
+
+## ⚡ Performance & Grafik-Update (Vogelperspektive)
+- **Zero Z-Fighting & Shadow Acne:** Open-ended Terrain-Zylinder, kalibrierte Shadow Biases (`0.0001`) und optimierte Depth Buffer Precision (Near 1.0, Far 1000).
+- **Sichtbare Straßenführung:** Asphalt-Fahrbahn, Markierungen und Kreis-Pedestale sauber über Gras-Terrain geschichtet.
+- **Freie Sicht & Clean Board:** Entfernung blockierender Monolithen zu Gunsten stilvoller GLB-Modelle und optimierter Tiefen-Sortierung für Tile-Badges.
+

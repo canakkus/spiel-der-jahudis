@@ -96,20 +96,25 @@ function renderCharacters(chars) {
     const card = document.createElement('div');
     card.className = 'char-card';
     card.dataset.id = c.id;
-    card.style.borderColor = c.color + '60';
+    card.style.borderColor = c.color + '40';
     card.innerHTML = `
-      <span class="char-icon" style="filter:drop-shadow(0 0 8px ${c.color})">${c.icon}</span>
-      <div class="char-name">${c.name}</div>
+      <span class="char-icon" style="filter:drop-shadow(0 0 10px ${c.color})">${c.icon}</span>
+      <div class="char-name" style="color:#f8fafc;">${c.name}</div>
+      <div class="char-car">${c.car || '🚗 Auto'}</div>
+      <div class="char-tag" style="color:${c.color}; font-weight:600;">${c.tag || ''}</div>
     `;
     card.addEventListener('click', () => {
       document.querySelectorAll('.char-card').forEach(cc => {
         cc.classList.remove('selected');
-        cc.style.borderColor = chars.find(ch => ch.id === cc.dataset.id)?.color + '60' || '';
+        const origChar = chars.find(ch => ch.id === cc.dataset.id);
+        cc.style.borderColor = origChar ? (origChar.color + '30') : 'rgba(255,255,255,0.1)';
         cc.style.background = '';
+        cc.style.boxShadow = '';
       });
       card.classList.add('selected');
       card.style.borderColor = c.color;
-      card.style.background = c.color + '18';
+      card.style.background = c.color + '22';
+      card.style.boxShadow = `0 0 18px ${c.color}55`;
       selectedCharacterId = c.id;
       btnReady.disabled = false;
     });
@@ -463,12 +468,13 @@ function launchPhysicsSpin(initialVelocity, expectedSector = null) {
     if (expectedSector && Math.abs(wheelAngularVelocity) < 0.06) {
       const sectorIdx = CONTROLLER_WHEEL_SECTORS.findIndex(s => s.num === expectedSector.num);
       if (sectorIdx !== -1) {
-        const arc = (Math.PI * 2) / CONTROLLER_WHEEL_SECTORS.length;
-        const targetAngle = (1.5 * Math.PI) - (sectorIdx * arc + arc / 2);
-        const mod = wheelAngle % (Math.PI * 2);
+        const twoPi = Math.PI * 2;
+        const arc = twoPi / CONTROLLER_WHEEL_SECTORS.length;
+        const targetAngle = ((1.5 * Math.PI - (sectorIdx * arc + arc / 2)) % twoPi + twoPi) % twoPi;
+        const mod = ((wheelAngle % twoPi) + twoPi) % twoPi;
         let diff = targetAngle - mod;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
+        if (diff > Math.PI) diff -= twoPi;
+        if (diff < -Math.PI) diff += twoPi;
         wheelAngle += diff * 0.14 * dt;
       }
     }
@@ -483,12 +489,13 @@ function launchPhysicsSpin(initialVelocity, expectedSector = null) {
       // Lock final exact angle to sector center
       const sectorIdx = CONTROLLER_WHEEL_SECTORS.findIndex(s => s.num === finalSector.num);
       if (sectorIdx !== -1) {
-        const arc = (Math.PI * 2) / CONTROLLER_WHEEL_SECTORS.length;
-        const targetAngle = (1.5 * Math.PI) - (sectorIdx * arc + arc / 2);
-        const mod = wheelAngle % (Math.PI * 2);
+        const twoPi = Math.PI * 2;
+        const arc = twoPi / CONTROLLER_WHEEL_SECTORS.length;
+        const targetAngle = ((1.5 * Math.PI - (sectorIdx * arc + arc / 2)) % twoPi + twoPi) % twoPi;
+        const mod = ((wheelAngle % twoPi) + twoPi) % twoPi;
         let diff = targetAngle - mod;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
+        if (diff > Math.PI) diff -= twoPi;
+        if (diff < -Math.PI) diff += twoPi;
         wheelAngle += diff;
         drawControllerWheel(wheelAngle);
       }

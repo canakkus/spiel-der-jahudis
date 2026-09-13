@@ -20,6 +20,9 @@ const lobbyPlayersGrid= document.getElementById('lobby-players-grid');
 const wheelOverlay    = document.getElementById('wheel-overlay');
 const wheelCanvas     = document.getElementById('wheel-canvas');
 const wheelPlayerName = document.getElementById('wheel-player-name');
+const wheelHudBanner  = document.getElementById('wheel-hud-banner');
+const wheelHudStatus  = document.getElementById('wheel-hud-status');
+const wheelHudValue   = document.getElementById('wheel-hud-value');
 const actionOverlay   = document.getElementById('action-overlay');
 const cardIcon        = document.getElementById('card-icon');
 const cardTitle       = document.getElementById('card-title');
@@ -155,13 +158,36 @@ function drawWheel(angle) {
 }
 
 // ── Room creation ─────────────────────────────────────────────
-socket.emit('host_create_room', { host: window.location.host, protocol: window.location.protocol });
+function requestRoom() {
+  socket.emit('host_create_room', { host: window.location.host, protocol: window.location.protocol });
+}
+
+// Wait for explicit connect before requesting room (fixes cmd+R race condition)
+socket.on('connect', () => {
+  console.log('[HOST] Socket connected:', socket.id);
+  // Only create a new room if we don't already have one in this session
+  if (!currentRoomCode) {
+    requestRoom();
+  }
+});
+
+// On reconnect (e.g. server restart), always request a fresh room
+socket.on('reconnect', () => {
+  console.log('[HOST] Reconnected – requesting fresh room');
+  currentRoomCode = null;
+  requestRoom();
+});
+
+socket.on('connect_error', (err) => {
+  console.warn('[HOST] Connect error:', err.message);
+  if (joinUrlDisplay) joinUrlDisplay.textContent = 'Verbindungsfehler – Server läuft?';
+});
 
 socket.on('room_created', ({ roomCode, joinUrl, qrCodeDataUrl }) => {
   currentRoomCode = roomCode;
   roomCodeDisplay.textContent = roomCode;
   joinUrlDisplay.textContent = joinUrl;
-  if (qrCodeImg) qrCodeImg.src = qrCodeDataUrl;
+  if (qrCodeImg && qrCodeDataUrl) qrCodeImg.src = qrCodeDataUrl;
   drawWheel(0);
 });
 
@@ -197,11 +223,11 @@ function renderLobbyPlayers() {
       <div class="player-avatar" style="background:${p.character.color}20; color:${p.character.color}; font-size:2.5rem;">${p.character.icon}</div>
       <div>
         <div class="player-name">${p.name}</div>
-        <div class="player-outfit" style="color:${p.character.color}; font-size:12px;">
-          ${p.career ? p.career.icon + ' ' + p.career.name : p.character.name}
+        <div class="player-outfit" style="color:${p.character.color}; font-size:12px; font-weight:700;">
+          ${p.character.name} · ${p.character.car || '🚗'}
         </div>
-        <div style="font-size:11px; color:#94a3b8; margin-top:4px;">
-          Gehalt: ${(p.salary || 0).toLocaleString()} €/Zahltag
+        <div style="font-size:11px; color:#94a3b8; margin-top:2px;">
+          ${p.character.tag || (p.career ? (p.career.icon + ' ' + p.career.name) : '')}
         </div>
         <div style="margin-top:6px; font-size:13px;">${p.ready ? '✅ Bereit' : '⏳ Warten...'}</div>
       </div>
@@ -215,7 +241,7 @@ if (btnCameraToggle) {
   btnCameraToggle.addEventListener('click', () => {
     if (dubaiBoard3D) {
       const mode = dubaiBoard3D.toggleCameraMode();
-      btnCameraToggle.textContent = mode === 'overview' ? '🚁 Übersicht' : '🎥 Verfolger-Kamera';
+      btnCameraToggle.textContent = mode === 'overview' ? '🚁 Vogelperspektive' : '🎥 Verfolger-Kamera';
     }
   });
 }
@@ -233,9 +259,15 @@ socket.on('game_started', ({ players, currentTurnPlayer }) => {
   lobbyScreen.style.display = 'none';
   gameScreen.style.display = 'flex';
 
-  dubaiBoard3D = new DubaiBoard3D('board-canvas');
-  dubaiBoard3D.init();
-  dubaiBoard3D.updatePlayers(currentPlayers);
+  try {
+    dubaiBoard3D = new DubaiBoard3D('board-canvas');
+    dubaiBoard3D.init();
+    dubaiBoard3D.updatePlayers(currentPlayers);
+  } catch (err) {
+    console.error('[BOARD3D] Init crashed:', err);
+    document.getElementById('board-canvas').innerHTML = `<div style="color:red;padding:20px;font-family:monospace">3D-Board Fehler: ${err.message}<br><pre>${err.stack}</pre></div>`;
+    return;
+  }
 
   // Wire up branch callback
   dubaiBoard3D.onReachBranch = (player, nodeId, remainingSteps, nextIds) => {
@@ -283,47 +315,42 @@ window.addEventListener('keydown', e => {
   }
 });
 
-// ── Wheel spin ─────────────────────────────────────────────────
+// ── Wheel spin (In-Game 3D Board Wheel) ─────────────────────────
 socket.on('wheel_spun', ({ player, spinValue, velocity = 1 }) => {
   activePlayer = player;
-  wheelPlayerName.textContent = `${player.name} dreht das Rad...`;
-  wheelOverlay.classList.add('active');
+
+  if (wheelPlayerName) {
+    const icon = player.character && player.character.icon ? `${player.character.icon} ` : '';
+    wheelPlayerName.textContent = `${icon}${player.name}`;
+  }
+  if (wheelHudStatus) wheelHudStatus.textContent = 'dreht am Glücksrad...';
+  if (wheelHudValue) {
+    wheelHudValue.textContent = '🎡';
+    wheelHudValue.classList.remove('celebrate');
+  }
+  if (wheelHudBanner) wheelHudBanner.classList.add('active');
 
   if (dubaiBoard3D && typeof dubaiBoard3D.spinBoardWheel === 'function') {
-    dubaiBoard3D.spinBoardWheel(spinValue, velocity);
-  }
+    // 🎥 Pure 3D In-Game Wheel Spin with dynamic chase cam & physical deceleration
+    dubaiBoard3D.spinBoardWheel(spinValue, velocity, () => {
+      // 3D wheel landed on target sector
+      if (wheelHudStatus) wheelHudStatus.textContent = `hat eine ${spinValue} gedreht!`;
+      if (wheelHudValue) {
+        wheelHudValue.textContent = spinValue;
+        wheelHudValue.classList.add('celebrate');
+      }
 
-  const sectorIndex = WHEEL_SECTORS.findIndex(s => s.num === spinValue);
-  const arc = (2 * Math.PI) / WHEEL_SECTORS.length;
-  const targetAngle = (3 * Math.PI / 2) - (sectorIndex * arc + arc / 2);
-  
-  // Dynamic rotations and duration based on player swipe velocity
-  const rotations = Math.min(6, Math.max(3, Math.round(velocity * 1.2)));
-  const duration = Math.min(3400, Math.max(2200, 2000 + velocity * 220));
-  const finalAngle = rotations * 2 * Math.PI + targetAngle;
-  const startTime = performance.now();
-  let lastTick = 0;
-
-  function animateWheel(now) {
-    const elapsed = now - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    const ease = 1 - Math.pow(1 - progress, 3);
-    const current = ease * finalAngle;
-    drawWheel(current);
-    if (Math.abs(current - lastTick) >= arc) {
-      window.soundEngine && window.soundEngine.play('wheel_tick');
-      lastTick = current;
-    }
-    if (progress < 1) {
-      requestAnimationFrame(animateWheel);
-    } else {
       setTimeout(() => {
-        wheelOverlay.classList.remove('active');
+        if (wheelHudBanner) wheelHudBanner.classList.remove('active');
         execute3DMove(player, spinValue);
-      }, 700);
-    }
+      }, 900);
+    });
+  } else {
+    setTimeout(() => {
+      if (wheelHudBanner) wheelHudBanner.classList.remove('active');
+      execute3DMove(player, spinValue);
+    }, 1500);
   }
-  requestAnimationFrame(animateWheel);
 });
 
 // ── Movement ───────────────────────────────────────────────────
@@ -357,6 +384,7 @@ function showPaydayFlash() {
 
 function handleTileLanding(player, node) {
   window.soundEngine && window.soundEngine.play('move_step');
+  // Only send player_moved_to_tile when LANDING (final tile) – not when passing!
   socket.emit('player_moved_to_tile', {
     roomCode: currentRoomCode,
     playerId: player.socketId,
@@ -365,6 +393,7 @@ function handleTileLanding(player, node) {
     nodeDecisionId: node.decisionId || null
   });
 }
+
 
 // ── Branch choice resolved by path-choice-overlay or controller ──
 socket.on('path_chosen', ({ playerId, chosenNodeId }) => {
