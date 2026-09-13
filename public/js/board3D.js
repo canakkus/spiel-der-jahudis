@@ -208,6 +208,7 @@ class DubaiBoard3D {
     spire.position.y = 16.5;
     spire.rotation.y = Math.PI / 4;
     libGroup.add(spire);
+    this.animatedObjects.push({ obj: spire, type: 'rotateY', speed: 0.005 });
     this.scene.add(libGroup);
 
     // Campus Trees
@@ -240,6 +241,35 @@ class DubaiBoard3D {
       [cx - 2, cz - 4], [cx + 2, cz + 2], [cx + 12, cz - 2], [cx - 10, cz - 4]
     ];
     lamps.forEach(p => this.createStreetLamp(p[0], 1.4, p[1]));
+
+    // Flying Cars / Drones circling the skyscrapers
+    const droneColors = [0xef4444, 0x38bdf8, 0xfacc15];
+    for (let i = 0; i < 3; i++) {
+      const droneGroup = new THREE.Group();
+      droneGroup.position.set(cx + (Math.random() * 20 - 10), 15 + Math.random() * 10, cz + (Math.random() * 20 - 10));
+      
+      const droneGeo = new THREE.BoxGeometry(1.2, 0.4, 0.6);
+      const droneMat = new THREE.MeshStandardMaterial({ color: droneColors[i], metalness: 0.9, roughness: 0.1 });
+      const drone = new THREE.Mesh(droneGeo, droneMat);
+      droneGroup.add(drone);
+      
+      this.scene.add(droneGroup);
+      
+      // Animate drone bobbing
+      this.animatedObjects.push({
+        obj: droneGroup,
+        type: 'bob',
+        speed: 2 + Math.random(),
+        amp: 1.5,
+        baseY: droneGroup.position.y
+      });
+      // Also slowly rotate it
+      this.animatedObjects.push({
+        obj: droneGroup,
+        type: 'rotateY',
+        speed: 0.01 + Math.random() * 0.015
+      });
+    }
   }
 
   // ── 🏡 BIOME 3: Suburbia & Family ─────────────────────────────
@@ -291,10 +321,13 @@ class DubaiBoard3D {
 
     // Apex laser light beam atop Pyramid
     const beamGeo = new THREE.CylinderGeometry(0.3, 0.8, 30, 16);
+    beamGeo.translate(0, 15, 0); // Shift origin to the base
     const beamMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 });
     const beam = new THREE.Mesh(beamGeo, beamMat);
-    beam.position.set(cx - 6, 29, cz - 4);
+    beam.position.set(cx - 6, 14, cz - 4);
+    beam.rotation.z = 0.15; // Tilt slightly to sweep around
     this.scene.add(beam);
+    this.animatedObjects.push({ obj: beam, type: 'rotateY', speed: -0.015 });
 
     // Giant Rotating 3D Bitcoin Sculpture
     const btcGroup = new THREE.Group();
@@ -561,6 +594,16 @@ class DubaiBoard3D {
     group.add(crown);
 
     this.scene.add(group);
+    
+    // Wind sway animation
+    this.animatedObjects.push({
+      obj: group,
+      type: 'swayXY',
+      speed: 1.2 + Math.random() * 0.8,
+      amp: 0.02 + Math.random() * 0.01,
+      baseRotX: group.rotation.x,
+      baseRotZ: group.rotation.z
+    });
   }
 
   createTropicalPalm(x, y, z) {
@@ -571,7 +614,8 @@ class DubaiBoard3D {
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85 });
     const trunk = new THREE.Mesh(trunkGeo, trunkMat);
     trunk.position.y = 3;
-    trunk.rotation.z = (Math.random() - 0.5) * 0.35;
+    const initialRotZ = (Math.random() - 0.5) * 0.35;
+    trunk.rotation.z = initialRotZ;
     trunk.castShadow = true;
     group.add(trunk);
 
@@ -585,6 +629,17 @@ class DubaiBoard3D {
       leaf.rotation.y = angle;
       group.add(leaf);
     }
+    
+    // Add swaying animation to the whole palm tree
+    this.animatedObjects.push({
+      obj: group,
+      type: 'swayXY',
+      speed: 1.5 + Math.random() * 1.0,
+      amp: 0.03 + Math.random() * 0.02,
+      baseRotX: group.rotation.x,
+      baseRotZ: group.rotation.z
+    });
+    
     this.scene.add(group);
   }
 
@@ -609,6 +664,16 @@ class DubaiBoard3D {
       group.add(leaf);
     }
     this.scene.add(group);
+    
+    // Wind sway animation
+    this.animatedObjects.push({
+      obj: group,
+      type: 'swayXY',
+      speed: 1.5 + Math.random() * 0.5,
+      amp: 0.025 + Math.random() * 0.015,
+      baseRotX: group.rotation.x,
+      baseRotZ: group.rotation.z
+    });
   }
 
   createStreetLamp(x, y, z) {
@@ -645,6 +710,15 @@ class DubaiBoard3D {
     const deck = new THREE.Mesh(deckGeo, deckMat);
     deck.position.set(0, 2.7, -1);
     group.add(deck);
+
+    this.animatedObjects.push({
+      obj: group,
+      type: 'bobRotX',
+      speed: 1.2,
+      amp: 0.2,
+      baseY: group.position.y,
+      baseRotX: group.rotation.x
+    });
 
     this.scene.add(group);
   }
@@ -684,18 +758,26 @@ class DubaiBoard3D {
     const len = dir.length();
     const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
 
+    // Shorten road segment slightly so they don't overlap inside the node pedestals
+    const margin = 1.8;
+    const adjustedLen = Math.max(0.1, len - margin * 2);
+
+    // Strict vertical layering to prevent Z-fighting
+    const roadY = p1.y - 0.05;
+    const lineY = p1.y - 0.03;
+    const curbY = p1.y - 0.01;
+
     // 1. Dark Road Asphalt Ribbon
     const roadWidth = 3.2;
-    const roadGeo = new THREE.BoxGeometry(roadWidth, 0.22, len);
+    const roadGeo = new THREE.BoxGeometry(roadWidth, 0.22, adjustedLen);
     const roadMat = new THREE.MeshStandardMaterial({
       color: 0x1e293b,
       roughness: 0.65,
       metalness: 0.25
     });
     const road = new THREE.Mesh(roadGeo, roadMat);
-    const yOffset = Math.random() * 0.005;
     road.position.copy(mid);
-    road.position.y = p1.y - 0.06 + yOffset;
+    road.position.y = roadY;
     const lookTarget = p2.clone();
     lookTarget.y = road.position.y;
     road.lookAt(lookTarget);
@@ -704,12 +786,12 @@ class DubaiBoard3D {
 
     // 2. Beveled Sidewalk Curbs (Left & Right)
     const curbWidth = 0.26;
-    const curbGeo = new THREE.BoxGeometry(curbWidth, 0.32, len);
+    const curbGeo = new THREE.BoxGeometry(curbWidth, 0.32, adjustedLen);
     const curbMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5, metalness: 0.3 });
 
     const leftCurb = new THREE.Mesh(curbGeo, curbMat);
     leftCurb.position.copy(mid);
-    leftCurb.position.y = p1.y - 0.02 + yOffset;
+    leftCurb.position.y = curbY;
     leftCurb.lookAt(lookTarget);
     leftCurb.translateX(-roadWidth / 2);
     leftCurb.castShadow = true;
@@ -717,36 +799,36 @@ class DubaiBoard3D {
 
     const rightCurb = new THREE.Mesh(curbGeo, curbMat);
     rightCurb.position.copy(mid);
-    rightCurb.position.y = p1.y - 0.02 + yOffset;
+    rightCurb.position.y = curbY;
     rightCurb.lookAt(lookTarget);
     rightCurb.translateX(roadWidth / 2);
     rightCurb.castShadow = true;
     this.scene.add(rightCurb);
 
     // 3. Crisp White Edge Markings
-    const edgeGeo = new THREE.BoxGeometry(0.12, 0.24, len);
+    const edgeGeo = new THREE.BoxGeometry(0.12, 0.24, adjustedLen);
     const edgeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
 
     const leftEdge = new THREE.Mesh(edgeGeo, edgeMat);
     leftEdge.position.copy(mid);
-    leftEdge.position.y = p1.y - 0.04 + yOffset;
+    leftEdge.position.y = lineY;
     leftEdge.lookAt(lookTarget);
     leftEdge.translateX(-roadWidth / 2 + 0.34);
     this.scene.add(leftEdge);
 
     const rightEdge = new THREE.Mesh(edgeGeo, edgeMat);
     rightEdge.position.copy(mid);
-    rightEdge.position.y = p1.y - 0.04 + yOffset;
+    rightEdge.position.y = lineY;
     rightEdge.lookAt(lookTarget);
     rightEdge.translateX(roadWidth / 2 - 0.34);
     this.scene.add(rightEdge);
 
     // 4. Yellow Dashed Centerline
-    const lineGeo = new THREE.BoxGeometry(0.24, 0.24, len * 0.72);
+    const lineGeo = new THREE.BoxGeometry(0.24, 0.24, adjustedLen * 0.72);
     const lineMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3 });
     const line = new THREE.Mesh(lineGeo, lineMat);
     line.position.copy(mid);
-    line.position.y = p1.y - 0.04 + yOffset;
+    line.position.y = lineY;
     line.lookAt(lookTarget);
     this.scene.add(line);
   }
@@ -1318,9 +1400,22 @@ class DubaiBoard3D {
       this.waterMesh.rotation.z += 0.0003;
     }
 
-    // Animated objects (e.g. rotating Bitcoin coin)
+    // Animated objects (e.g. rotating Bitcoin coin, bobbing yacht, swaying palms)
+    const time = performance.now() * 0.001;
     this.animatedObjects.forEach(item => {
-      if (item.type === 'rotateY') item.obj.rotation.y += item.speed;
+      if (item.type === 'rotateY') {
+        item.obj.rotation.y += item.speed;
+      } else if (item.type === 'bob') {
+        item.obj.position.y = item.baseY + Math.sin(time * item.speed) * item.amp;
+      } else if (item.type === 'bobRotX') {
+        item.obj.position.y = item.baseY + Math.sin(time * item.speed) * item.amp;
+        item.obj.rotation.x = item.baseRotX + Math.cos(time * item.speed * 0.8) * (item.amp * 0.1);
+      } else if (item.type === 'sway') {
+        item.obj.rotation.z = item.baseRotZ + Math.sin(time * item.speed) * item.amp;
+      } else if (item.type === 'swayXY') {
+        item.obj.rotation.x = item.baseRotX + Math.sin(time * item.speed) * item.amp;
+        item.obj.rotation.z = item.baseRotZ + Math.cos(time * item.speed * 1.1) * item.amp;
+      }
     });
 
     // Update confetti particles
