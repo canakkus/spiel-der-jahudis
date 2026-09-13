@@ -12,7 +12,7 @@ class GameState {
 
   addPlayer(player) {
     if (this.state !== 'LOBBY') return false;
-    if (this.players.length >= 4) return false;
+    if (this.players.length >= 5) return false;
     this.players.push(player);
     return true;
   }
@@ -31,7 +31,10 @@ class GameState {
       p.isTurn = (i === 0);
       p.isRetired = false;
       p.finalScore = 0;
-      if (!p.assets) p.assets = { house: null, houseValue: 0, vehicle: null, vehicleValue: 0, spouse: false, children: 0 };
+      if (!p.assets) p.assets = { house: null, houseValue: 0, vehicle: null, vehicleValue: 0 };
+      if (!p.investments) p.investments = { stocks: 0, crypto: 0, realEstate: 0 };
+      if (p.jahudiCoins === undefined) p.jahudiCoins = 50;
+      if (!p.inventory) p.inventory = [];
       if (!p.decisions) p.decisions = [];
       if (!p.achievements) p.achievements = [];
     });
@@ -66,13 +69,10 @@ class GameState {
   applyPayday(playerId) {
     const player = this.players.find(p => p.socketId === playerId);
     if (!player) return null;
-    const earned = player.salary || 0;
+    let earned = player.salary || 0;
+    earned = Math.min(earned, 300000); // Hard Salary Cap
+    player.salary = earned; // Ensure the salary itself doesn't exceed cap
     player.money += earned;
-    // Deduct child costs
-    if (player.assets && player.assets.children > 0) {
-      const childCost = player.assets.children * 10000;
-      player.money -= childCost;
-    }
     return { earned, player };
   }
 
@@ -82,6 +82,7 @@ class GameState {
     player.money += (event.moneyEffect || 0);
     player.happiness = Math.max(0, (player.happiness || 0) + (event.happinessEffect || 0));
     player.knowledge = Math.max(0, (player.knowledge || 0) + (event.knowledgeEffect || 0));
+    this.enforceLoans(player);
     return player;
   }
 
@@ -103,17 +104,34 @@ class GameState {
 
     const player = this.players.find(p => p.socketId === playerId);
     if (!player) return null;
-    if (!player.assets) player.assets = { house: null, houseValue: 0, vehicle: null, vehicleValue: 0, spouse: false, children: 0 };
+    if (!player.assets) player.assets = { house: null, houseValue: 0, vehicle: null, vehicleValue: 0 };
+    if (!player.investments) player.investments = { stocks: 0, crypto: 0, realEstate: 0 };
 
     const fx = option.effects || {};
     if (fx.money) player.money += fx.money;
     if (fx.happiness) player.happiness = Math.max(0, (player.happiness || 0) + fx.happiness);
     if (fx.knowledge) player.knowledge = Math.max(0, (player.knowledge || 0) + fx.knowledge);
+    if (fx.assignJob) {
+      // Dynamic salary calculation based on knowledge
+      const baseSalary = 40000;
+      const knowledgeBonus = (player.knowledge || 0) * 1500;
+      let calculatedSalary = baseSalary + knowledgeBonus;
+      if (fx.startupRisk) {
+        // Startup risk: can be a lot higher or lower
+        calculatedSalary = calculatedSalary * (Math.random() > 0.5 ? 2.5 : 0.5);
+      }
+      player.salary = calculatedSalary;
+    }
+
     if (fx.salary) player.salary = fx.salary;
     if (fx.salaryBonus) player.salary = (player.salary || 0) + fx.salaryBonus;
     if (fx.salaryReduction) player.salary = Math.max(0, (player.salary || 0) - fx.salaryReduction);
-    if (fx.spouse) player.assets.spouse = true;
-    if (fx.children) player.assets.children = (player.assets.children || 0) + fx.children;
+    
+    // Hard Salary Cap
+    if (player.salary !== undefined) {
+      player.salary = Math.min(player.salary, 300000);
+    }
+    
     if (fx.house) { player.assets.house = fx.house; player.assets.houseValue = fx.houseValue || 0; }
     if (fx.vehicle) { player.assets.vehicle = fx.vehicle; player.assets.vehicleValue = fx.vehicleValue || 0; }
     if (fx.earlyRetire) { this.retirePlayer(playerId); }
@@ -130,6 +148,8 @@ class GameState {
       player._chosenPath = fx.pathIndex;
     }
 
+    this.enforceLoans(player);
+
     player.decisions.push({ decisionId: decisionData.id, optionId, timestamp: Date.now() });
     this.state = 'PLAYING';
     this.pendingDecision = null;
@@ -145,17 +165,36 @@ class GameState {
     return player;
   }
 
+  enforceLoans(player) {
+    if (player.money < 0) {
+      if (!player.loans) player.loans = 0;
+      while (player.money < 0) {
+        player.loans += 1;
+        player.money += 50000;
+      }
+    }
+  }
+
   calculatePlayerScore(player) {
     let score = player.money || 0;
     if (player.assets) {
       score += player.assets.houseValue || 0;
       score += player.assets.vehicleValue || 0;
-      score += (player.assets.children || 0) * 50000;
-      if (player.assets.spouse) score += 100000;
+    }
+    if (player.investments) {
+      score += player.investments.stocks || 0;
+      score += player.investments.crypto || 0;
+      score += player.investments.realEstate || 0;
     }
     score += (player.knowledge || 0) * 500;
     score += (player.happiness || 0) * 1000;
-    return Math.max(0, score);
+    
+    // Penalize loans
+    if (player.loans) {
+      score -= player.loans * 50000;
+    }
+    
+    return score; // Allowing negative scores as per user request
   }
 
   calculateFinalScores() {

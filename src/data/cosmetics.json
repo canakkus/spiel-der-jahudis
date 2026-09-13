@@ -1,0 +1,44 @@
+[
+  {
+    "id": "island_rene",
+    "name": "Island Skin: Rene Schnedo",
+    "type": "Island Skin",
+    "rarity": "Einsteiger Jahud",
+    "characterId": "rene_schnedo"
+  },
+  {
+    "id": "white_rene",
+    "name": "White Party: Rene Schnedo",
+    "type": "White Party Outfit",
+    "rarity": "Big Jahu",
+    "characterId": "rene_schnedo"
+  },
+  {
+    "id": "island_jahudi",
+    "name": "Island Skin: Jahudi",
+    "type": "Island Skin",
+    "rarity": "Jahudi",
+    "characterId": "jahudi"
+  },
+  {
+    "id": "white_jahudi",
+    "name": "White Party: Jahudi",
+    "type": "White Party Outfit",
+    "rarity": "Big Jahu",
+    "characterId": "jahudi"
+  },
+  {
+    "id": "rolex_gold",
+    "name": "Goldene Luxus-Uhr",
+    "type": "Accessory",
+    "rarity": "Jahudi",
+    "characterId": "any"
+  },
+  {
+    "id": "sneakers_red",
+    "name": "Rote Sneaker",
+    "type": "Shoes",
+    "rarity": "Goy",
+    "characterId": "any"
+  }
+]

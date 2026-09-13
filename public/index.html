@@ -110,7 +110,7 @@
     /* Character cards */
     .character-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, 1fr);
       gap: 12px;
       margin-bottom: 20px;
       max-height: 60vh;
@@ -288,12 +288,18 @@
     </div>
   </div>
   <div class="stats-grid">
+    <div class="stat-box"><div class="stat-label">💎 Jahudi Coins</div><div class="stat-value" style="color:#a855f7;" id="stat-jahudi-coins">0</div></div>
     <div class="stat-box"><div class="stat-label">💰 Geld</div><div class="stat-value stat-money" id="stat-money">0</div></div>
     <div class="stat-box"><div class="stat-label">📈 Gehalt/Zahltag</div><div class="stat-value stat-salary" id="stat-salary">0</div></div>
     <div class="stat-box"><div class="stat-label">❤️ Glück</div><div class="stat-value stat-happiness" id="stat-happiness">0</div></div>
     <div class="stat-box"><div class="stat-label">🧠 Wissen</div><div class="stat-value stat-knowledge" id="stat-knowledge">0</div></div>
   </div>
   <div class="assets-row" id="assets-row"></div>
+  <button id="btn-shop" class="btn-primary" style="background: linear-gradient(135deg, #a855f7 0%, #6366f1 100%); margin: 15px 0;">🛍️ Jahudi Shop & Inventory</button>
+  <button id="btn-open-casino" class="btn-primary" style="background: linear-gradient(135deg, #eab308 0%, #d97706 100%); margin-bottom: 15px;">🎰 Casino & Investments</button>
+
+  <button id="btn-reroll-job" class="btn-primary" style="background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); margin-bottom: 15px;">🎲 Job Reroll (±50k)</button>
+
   <div class="turn-indicator" id="turn-indicator">Warte auf deinen Zug...</div>
   
   <div class="wheel-interactive-container disabled" id="wheel-container">
@@ -355,5 +361,49 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/controller.js"></script>
+
+  <!-- Jahudi Shop Modal -->
+  <div id="shop-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; padding: 20px; overflow-y: auto;">
+    <div style="background: var(--surface); border-radius: 20px; padding: 24px; max-width: 500px; margin: 40px auto; border: 1px solid var(--border);">
+      <h2 style="margin-top: 0; text-align: center;">Jahudi Shop</h2>
+      <div style="text-align: center; margin-bottom: 20px; font-weight: bold;">
+        💎 Deine Coins: <span id="shop-jahudi-coins" style="color:#a855f7;">0</span>
+      </div>
+      
+      <h3>Cases</h3>
+      <div id="shop-cases-list" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 20px;"></div>
+      
+      <h3>Dein Inventar</h3>
+      <div id="inventory-list" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom: 20px;"></div>
+      
+      <button id="btn-close-shop" class="btn-primary" style="background: var(--surface-light);">Schließen</button>
+    </div>
+  </div>
+
+
+  <!-- Casino Modal -->
+  <div id="casino-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; padding: 20px; overflow-y: auto;">
+    <div style="background: var(--surface); border-radius: 20px; padding: 24px; max-width: 500px; margin: 40px auto; border: 1px solid var(--border);">
+      <h2 style="margin-top: 0; text-align: center;">🎰 Casino & Investments</h2>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+        <button id="btn-casino-blackjack" class="btn-primary" style="flex: 1; margin-right: 5px;">🃏 Blackjack</button>
+        <button id="btn-casino-chicken" class="btn-primary" style="flex: 1; margin-left: 5px;">🐔 Chicken</button>
+      </div>
+      
+      <div id="casino-game-area" style="text-align: center; display: none;">
+        <h3 id="casino-game-title">Game</h3>
+        <div style="margin-bottom: 10px;">Dein Cash: $<span id="casino-cash">0</span></div>
+        <div style="display:flex; justify-content:space-between; gap: 5px; margin-bottom: 20px;">
+          <button class="btn-primary btn-bet" data-pct="1">1%</button>
+          <button class="btn-primary btn-bet" data-pct="10">10%</button>
+          <button class="btn-primary btn-bet" data-pct="30">30%</button>
+          <button class="btn-primary btn-bet" data-pct="100" style="background:#ea580c;">100%</button>
+        </div>
+        <div id="casino-result" style="font-weight: bold; margin-bottom: 15px;"></div>
+      </div>
+      <button id="btn-close-casino" class="btn-primary" style="background: var(--surface-light);">Schließen</button>
+    </div>
+  </div>
+
 </body>
 </html>

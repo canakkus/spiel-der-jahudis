@@ -6,6 +6,8 @@ const QRCode = require('qrcode');
 const path = require('path');
 const GameState = require('./src/game/GameState');
 const careers = require('./src/data/careers.json');
+const casesData = require('./src/data/cases.json');
+const cosmeticsData = require('./src/data/cosmetics.json');
 const events = require('./src/data/events.json');
 const decisions = require('./src/data/decisions.json');
 const houses = require('./src/data/houses.json');
@@ -37,18 +39,7 @@ function getLocalIpAddress() {
 }
 const localIp = getLocalIpAddress();
 
-const PRESET_CHARACTERS = [
-  { id: 'business',   name: 'Business Bro',      icon: '💼', color: '#3b82f6', car: '🏎️ Sportwagen',    carModel: 'car_sports', tag: 'Krawatte, Excel & Kaltakquise' },
-  { id: 'party',      name: 'Casino Queen',      icon: '🪩', color: '#ec4899', car: '🏎️ Rennwagen',     carModel: 'car_race',   tag: 'All-In auf Rot & Champagner' },
-  { id: 'crypto',     name: 'Krypto Bro',        icon: '🚀', color: '#f59e0b', car: '🚙 Krypto-SUV',    carModel: 'car_suv',    tag: 'To the Moon, HODL & Lambo' },
-  { id: 'student',    name: 'Hustler Student',   icon: '🎓', color: '#10b981', car: '🚗 Kompaktflitzer', carModel: 'car_hatch',  tag: 'Thesis, 5 Red Bull & Hoffnung' },
-  { id: 'gym',        name: 'Gym Bro / Pumper',  icon: '💪', color: '#ef4444', car: '🚙 Monster-SUV',    carModel: 'car_suv',    tag: 'Pre-Workout & 200kg Deadlift' },
-  { id: 'coder',      name: 'Tech Guru',         icon: '💻', color: '#06b6d4', car: '🚗 E-Limousine',    carModel: 'car_sedan',  tag: 'Git push --force & Kaffeerausch' },
-  { id: 'influencer', name: 'Social Influencer', icon: '📸', color: '#a855f7', car: '🏎️ Cabrio',        carModel: 'car_sports', tag: 'Daily Vlog & Code: JAHUDI20' },
-  { id: 'agent',      name: 'Geheimagent',       icon: '🕶️', color: '#64748b', car: '🚗 Stealth-Sedan',  carModel: 'car_sedan',  tag: 'Undercover, Trenchcoat & Pokerface' },
-  { id: 'hippie',     name: 'Vanlife Hippie',    icon: '🚐', color: '#84cc16', car: '🚐 Camper-Van',    carModel: 'car_van',    tag: 'Roadtrip, Akustikgitarre & Chillen' },
-  { id: 'rockstar',   name: 'Rockstar',          icon: '🎸', color: '#e11d48', car: '🚐 Tour-Bus',      carModel: 'car_van',    tag: 'Stadiontour & Hotelzimmer zerlegen' }
-];
+const PRESET_CHARACTERS = require('./src/data/characters.json');
 
 const rooms = {};
 
@@ -122,20 +113,13 @@ function processNodeLanding(room, player, node) {
       }
       break;
     }
-    case 'family': {
-      const decId = node.decisionId || 'marriage';
+    case 'knowledge': {
+      const decId = node.decisionId || 'education';
       const dec = decisions.find(d => d.id === decId);
       if (dec) {
         room.setWaitingForDecision(player.socketId, decId);
         result.decision = dec;
         result.waitingForDecision = true;
-      } else {
-        const familyEvents = events.filter(e => e.id === 'erbschaft' || e.id === 'luxusurlaub');
-        if (familyEvents.length) {
-          const ev = familyEvents[Math.floor(Math.random() * familyEvents.length)];
-          room.applyEvent(player.socketId, ev);
-          result.event = ev;
-        }
       }
       break;
     }
@@ -151,7 +135,10 @@ function processNodeLanding(room, player, node) {
     case 'career': {
       if (player.career && player.career.level < player.career.maxLevel) {
         player.career.level++;
-        player.salary = player.career.salaryPerLevel[player.career.level - 1];
+        // Dynamic Raise: 10% to 30% increase
+        const raisePercent = 0.10 + (Math.random() * 0.20);
+        let newSalary = (player.salary || 0) * (1 + raisePercent);
+        player.salary = Math.min(300000, Math.round(newSalary));
         result.careerAdvancement = true;
         result.newLevel = player.career.level;
         result.newSalary = player.salary;
@@ -330,6 +317,77 @@ io.on('connection', (socket) => {
     socket.emit('characters_list', PRESET_CHARACTERS);
   });
 
+  socket.on('buy_case', ({ roomCode, caseId }) => {
+    const code = (roomCode || socket.roomCode || '').toUpperCase().trim();
+    const room = rooms[code];
+    if (!room) return;
+    const player = room.players.find(p => p.socketId === socket.id);
+    if (!player) return;
+
+    const caseObj = casesData.find(c => c.id === caseId);
+    if (!caseObj) {
+      socket.emit('case_error', { message: 'Case not found' });
+      return;
+    }
+
+    if (player.jahudiCoins < caseObj.cost) {
+      socket.emit('case_error', { message: 'Not enough Jahudi Coins' });
+      return;
+    }
+
+    // Deduct coins
+    player.jahudiCoins -= caseObj.cost;
+
+    // Roll rarity
+    const rand = Math.random() * 100;
+    let cumulative = 0;
+    let wonRarity = 'Goy';
+    for (const drop of caseObj.drops) {
+      cumulative += drop.chance;
+      if (rand <= cumulative) {
+        wonRarity = drop.rarity;
+        break;
+      }
+    }
+
+    // Pick cosmetic of that rarity
+    const possibleCosmetics = cosmeticsData.filter(c => c.rarity === wonRarity);
+    let wonCosmetic = null;
+    if (possibleCosmetics.length > 0) {
+      wonCosmetic = possibleCosmetics[Math.floor(Math.random() * possibleCosmetics.length)];
+      if (!player.inventory) player.inventory = [];
+      player.inventory.push(wonCosmetic);
+    }
+
+    // Inform client
+    socket.emit('case_opened', { cosmetic: wonCosmetic, jahudiCoins: player.jahudiCoins });
+    // Update host state
+    io.to(code).emit('game_state_update', room);
+  });
+
+  socket.on('equip_cosmetic', ({ roomCode, cosmeticId }) => {
+    const code = (roomCode || socket.roomCode || '').toUpperCase().trim();
+    const room = rooms[code];
+    if (!room) return;
+    const player = room.players.find(p => p.socketId === socket.id);
+    if (!player) return;
+
+    const cosmetic = player.inventory.find(c => c.id === cosmeticId);
+    if (!cosmetic) return;
+
+    // Example logic: just set activeOutfit based on what is equipped
+    if (cosmetic.type === 'White Party Outfit') {
+      player.activeOutfit = 'whiteParty';
+    } else if (cosmetic.type === 'Island Skin') {
+      player.activeOutfit = 'island';
+    } else {
+      player.activeOutfit = 'default';
+    }
+
+    io.to(code).emit('game_state_update', room);
+  });
+
+
   socket.on('branch_reached', (data) => {
     io.to(data.roomCode).emit('path_choice_required', data);
   });
@@ -430,6 +488,26 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('reroll_job', ({ roomCode }) => {
+    const code = (roomCode || socket.roomCode || '').toUpperCase().trim();
+    const room = rooms[code];
+    if (!room) return;
+    const player = room.players.find(p => p.socketId === socket.id);
+    if (!player) return;
+
+    if (player.salary !== undefined) {
+      // Max ±50,000 $
+      const change = (Math.random() * 100000) - 50000;
+      player.salary = Math.max(0, Math.min(300000, player.salary + change));
+      
+      io.to(code).emit('player_stats_updated', {
+        players: room.players,
+        updatedPlayer: player,
+        event: { headline: "Job Reroll!", desc: `Dein neues Gehalt ist jetzt ${Math.round(player.salary)} $.` }
+      });
+    }
+  });
+
   socket.on('next_turn', ({ roomCode }) => {
     const code = (roomCode || socket.roomCode || '').toUpperCase().trim();
     const room = rooms[code] || rooms[roomCode];
@@ -454,6 +532,23 @@ io.on('connection', (socket) => {
     if (!room) return;
     const player = room.players.find(p => p.socketId === socket.id) || { name: 'Zuschauer', character: { icon: '🎉' } };
     io.to(code).emit('soundboard_reaction', { player, soundId, timestamp: Date.now() });
+  });
+
+  
+  socket.on('casino_bet', ({ roomCode, percentage, game }) => {
+    const code = (roomCode || socket.roomCode || '').toUpperCase().trim();
+    const room = rooms[code];
+    if (!room) return;
+    const player = room.players.find(p => p.socketId === socket.id);
+    if (!player) return;
+
+    const miniGameManager = require('./src/minigames/MiniGameManager');
+    const result = miniGameManager.processBet(player, percentage, game, room);
+    
+    socket.emit('casino_result', result);
+    if (result && result.success) {
+      io.to(code).emit('game_state_update', room);
+    }
   });
 
   socket.on('disconnect', () => {

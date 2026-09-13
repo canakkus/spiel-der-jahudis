@@ -1,0 +1,25 @@
+[
+  {
+    "id": "starter_case",
+    "name": "Starter Jahudi Case",
+    "cost": 100,
+    "description": "Ein gutes Case für Einsteiger. Enthält Basis-Outfits und Island Skins.",
+    "drops": [
+      { "rarity": "Goy", "chance": 60 },
+      { "rarity": "Einsteiger Jahud", "chance": 30 },
+      { "rarity": "Jahudi", "chance": 9 },
+      { "rarity": "Big Jahu", "chance": 1 }
+    ]
+  },
+  {
+    "id": "premium_case",
+    "name": "Premium White Party Case",
+    "cost": 500,
+    "description": "Garantiert hochwertige Drops. White Party Outfits und seltene Accessories.",
+    "drops": [
+      { "rarity": "Einsteiger Jahud", "chance": 40 },
+      { "rarity": "Jahudi", "chance": 45 },
+      { "rarity": "Big Jahu", "chance": 15 }
+    ]
+  }
+]

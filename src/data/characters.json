@@ -1,0 +1,128 @@
+[
+  {
+    "id": "rene_schnedo",
+    "name": "Rene Schnedo",
+    "icon": "🧢",
+    "color": "#ef4444",
+    "tag": "Oversized Style, XXL GIG",
+    "car": "🚙 Monster-SUV",
+    "carModel": "car_suv",
+    "outfits": {
+      "default": "Oversized Streetwear",
+      "island": "Resort-Hemd & Shorts",
+      "whiteParty": "Weißes Oversized Set"
+    }
+  },
+  {
+    "id": "us_politiker",
+    "name": "US Politiker",
+    "icon": "👔",
+    "color": "#f59e0b",
+    "tag": "Business Anzug, orange Haare",
+    "car": "🚗 Limousine",
+    "carModel": "car_sedan",
+    "outfits": {
+      "default": "Business-Anzug & Krawatte",
+      "island": "Offenes weißes Hemd & Sonnenbrille",
+      "whiteParty": "Weißer Anzug"
+    }
+  },
+  {
+    "id": "inselbesitzer",
+    "name": "Inselbesitzer",
+    "icon": "🏖️",
+    "color": "#0ea5e9",
+    "tag": "Leinenhemd, Luxus-Uhr",
+    "car": "🏎️ Sportwagen",
+    "carModel": "car_sports",
+    "outfits": {
+      "default": "Luxuriöses Resort-Outfit",
+      "island": "Beach-Wear",
+      "whiteParty": "Weißer Luxusanzug"
+    }
+  },
+  {
+    "id": "white_party_organizer",
+    "name": "White Party Organizer",
+    "icon": "🥂",
+    "color": "#f8fafc",
+    "tag": "Elegantes Outfit, VIP-Look",
+    "car": "🏎️ Rennwagen",
+    "carModel": "car_race",
+    "outfits": {
+      "default": "Komplett weißes High-End-Outfit",
+      "island": "Weißes Resort-Outfit",
+      "whiteParty": "Premium White Party Setup"
+    }
+  },
+  {
+    "id": "gieriger_banker",
+    "name": "Gieriger Banker",
+    "icon": "💼",
+    "color": "#334155",
+    "tag": "Maßanzug, Aktentasche",
+    "car": "🚙 Luxus-SUV",
+    "carModel": "car_suv",
+    "outfits": {
+      "default": "Dunkler Maßanzug",
+      "island": "Hochwertiges Sommer-Hemd",
+      "whiteParty": "Weißer Maßanzug"
+    }
+  },
+  {
+    "id": "foid",
+    "name": "Foid",
+    "icon": "👱‍♀️",
+    "color": "#ec4899",
+    "tag": "Neutraler Base-Look",
+    "car": "🚗 Kompaktwagen",
+    "carModel": "car_hatch",
+    "outfits": {
+      "default": "Casual",
+      "island": "Badeoutfit",
+      "whiteParty": "Weißes Kleid"
+    }
+  },
+  {
+    "id": "gym_influencer",
+    "name": "Gym Influencer",
+    "icon": "💪",
+    "color": "#22c55e",
+    "tag": "Athletisch, Tanktop",
+    "car": "🚙 Sport-SUV",
+    "carModel": "car_suv",
+    "outfits": {
+      "default": "Gym-Outfit (Tanktop, Shorts)",
+      "island": "Badeshorts & Sonnenbrille",
+      "whiteParty": "Weißes Sport-/Party-Outfit"
+    }
+  },
+  {
+    "id": "casino_millionar",
+    "name": "Casino Millionär",
+    "icon": "🎰",
+    "color": "#eab308",
+    "tag": "Luxus, Gold-Details",
+    "car": "🏎️ Hypercar",
+    "carModel": "car_race",
+    "outfits": {
+      "default": "Luxuriöser Anzug, Gold",
+      "island": "Seidenhemd, Goldkette",
+      "whiteParty": "Weißer Luxus-Tuxedo"
+    }
+  },
+  {
+    "id": "jahudi",
+    "name": "Jahudi",
+    "icon": "🎩",
+    "color": "#1e293b",
+    "tag": "Hut, seitliche Locken",
+    "car": "🚗 Oldtimer",
+    "carModel": "car_sedan",
+    "outfits": {
+      "default": "Dunkler eleganter Anzug",
+      "island": "Leichtes Luxushemd",
+      "whiteParty": "Weißer Anzug"
+    }
+  }
+]

@@ -24,36 +24,15 @@
   {
     "id": "job_offer",
     "title": "Jobangebot!",
-    "description": "Du hast zwei Jobangebote. Was wählst du?",
+    "description": "Du hast zwei Jobangebote. Dein Gehalt hängt von deiner Bildung ab!",
     "icon": "📋",
     "fieldType": "career",
     "options": [
-      { "id": "secure_job", "label": "🏢 Sicherer Konzern-Job (+80k/Jahr)", "effects": { "salary": 80000, "happiness": 10 } },
-      { "id": "startup", "label": "🚀 Startup-Risiko (Chance auf 500k/Jahr)", "effects": { "salary": 20000, "happiness": 30, "startupRisk": true } }
+      { "id": "secure_job", "label": "🏢 Sicherer Konzern-Job", "effects": { "assignJob": "secure", "happiness": 10 } },
+      { "id": "startup", "label": "🚀 Startup-Risiko", "effects": { "assignJob": "startup", "happiness": 30, "startupRisk": true } }
     ]
   },
-  {
-    "id": "marriage",
-    "title": "HEIRATSANTRAG! 💍",
-    "description": "Du hast die Liebe deines Lebens getroffen. Wie lautet die Antwort?",
-    "icon": "💍",
-    "fieldType": "family",
-    "options": [
-      { "id": "yes_marry", "label": "💒 JA! Traumhochzeit (-50k, +Happiness)", "effects": { "money": -50000, "happiness": 100, "spouse": true } },
-      { "id": "no_marry", "label": "😎 Nein, ich bleibe Single & reich", "effects": { "happiness": -10 } }
-    ]
-  },
-  {
-    "id": "have_children",
-    "title": "Nachwuchs!",
-    "description": "Du und dein Partner überlegt, Kinder zu bekommen. Was sagt ihr?",
-    "icon": "👶",
-    "fieldType": "family",
-    "options": [
-      { "id": "yes_kids", "label": "👨‍👩‍👦 Kinder! (-30k/Zahltag, +200k Endwert)", "effects": { "children": 1, "happiness": 60, "salaryReduction": 30000 } },
-      { "id": "no_kids", "label": "🐕 Lieber ein Hund (+ Glück)", "effects": { "happiness": 30 } }
-    ]
-  },
+
   {
     "id": "house_purchase",
     "title": "Immobilienkauf!",

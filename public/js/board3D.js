@@ -24,6 +24,7 @@ class DubaiBoard3D {
     this.waterMesh = null;
     this.animatedObjects = [];
     this.models = {};
+    this.confettiParticles = [];
 
     // Callbacks from host.js
     this.onPassPayday = null;
@@ -2048,14 +2049,26 @@ class DubaiBoard3D {
       );
       piece.userData.isConfetti = true;
       this.scene.add(piece);
+      this.confettiParticles.push(piece);
 
-      setTimeout(() => this.scene.remove(piece), 3200);
+      setTimeout(() => {
+        this.scene.remove(piece);
+        const index = this.confettiParticles.indexOf(piece);
+        if (index > -1) {
+          this.confettiParticles.splice(index, 1);
+        }
+      }, 3200);
     }
   }
 
   // ── 🔄 Render Loop ────────────────────────────────────────────
-  animate() {
-    requestAnimationFrame(() => this.animate());
+  animate(time = performance.now()) {
+    requestAnimationFrame((t) => this.animate(t));
+
+    if (!this.lastTime) this.lastTime = time;
+    let dt = (time - this.lastTime) / 1000;
+    this.lastTime = time;
+    if (dt > 0.1) dt = 0.1; // Cap delta time to avoid large jumps if tab is inactive
 
     const isUserControlling = this._userOverride && this.controls;
 
@@ -2090,8 +2103,14 @@ class DubaiBoard3D {
         }
       }
 
-      this.camera.position.lerp(this.targetCameraPos, 0.045);
-      this.currentCameraLookAt.lerp(this.targetCameraLookAt, 0.055);
+      // Framerate independent lerp using exponential decay
+      // At 60fps (dt ≈ 0.0166), 1 - exp(-2.76 * dt) ≈ 0.045
+      // At 60fps (dt ≈ 0.0166), 1 - exp(-3.4 * dt) ≈ 0.055
+      const cameraLerpFactor = 1 - Math.exp(-2.76 * dt);
+      const lookAtLerpFactor = 1 - Math.exp(-3.4 * dt);
+
+      this.camera.position.lerp(this.targetCameraPos, cameraLerpFactor);
+      this.currentCameraLookAt.lerp(this.targetCameraLookAt, lookAtLerpFactor);
       this.camera.lookAt(this.currentCameraLookAt);
     }
 
@@ -2101,26 +2120,26 @@ class DubaiBoard3D {
     }
 
     // Animated objects (e.g. rotating Bitcoin coin, bobbing yacht, swaying palms)
-    const time = performance.now() * 0.001;
+    const timeSec = time * 0.001;
     this.animatedObjects.forEach(item => {
       if (item.type === 'rotateY') {
         item.obj.rotation.y += item.speed;
       } else if (item.type === 'bob') {
-        item.obj.position.y = item.baseY + Math.sin(time * item.speed) * item.amp;
+        item.obj.position.y = item.baseY + Math.sin(timeSec * item.speed) * item.amp;
       } else if (item.type === 'bobRotX') {
-        item.obj.position.y = item.baseY + Math.sin(time * item.speed) * item.amp;
-        item.obj.rotation.x = item.baseRotX + Math.cos(time * item.speed * 0.8) * (item.amp * 0.1);
+        item.obj.position.y = item.baseY + Math.sin(timeSec * item.speed) * item.amp;
+        item.obj.rotation.x = item.baseRotX + Math.cos(timeSec * item.speed * 0.8) * (item.amp * 0.1);
       } else if (item.type === 'sway') {
-        item.obj.rotation.z = item.baseRotZ + Math.sin(time * item.speed) * item.amp;
+        item.obj.rotation.z = item.baseRotZ + Math.sin(timeSec * item.speed) * item.amp;
       } else if (item.type === 'swayXY') {
-        item.obj.rotation.x = item.baseRotX + Math.sin(time * item.speed) * item.amp;
-        item.obj.rotation.z = item.baseRotZ + Math.cos(time * item.speed * 1.1) * item.amp;
+        item.obj.rotation.x = item.baseRotX + Math.sin(timeSec * item.speed) * item.amp;
+        item.obj.rotation.z = item.baseRotZ + Math.cos(timeSec * item.speed * 1.1) * item.amp;
       }
     });
 
     // Update confetti particles
-    this.scene.children.forEach(obj => {
-      if (obj.userData && obj.userData.isConfetti && obj.velocity) {
+    this.confettiParticles.forEach(obj => {
+      if (obj.velocity) {
         obj.position.add(obj.velocity);
         obj.velocity.y -= 0.005;
         obj.rotation.x += 0.06;
@@ -2133,7 +2152,8 @@ class DubaiBoard3D {
       if (isUserControlling) {
         this.controls.update();
       } else if (!this.isTrackingCar) {
-        this.controls.target.lerp(this.currentCameraLookAt, 0.05);
+        const controlsLerpFactor = 1 - Math.exp(-3.08 * dt); // Approx 0.05 at 60fps
+        this.controls.target.lerp(this.currentCameraLookAt, controlsLerpFactor);
         this.controls.update();
       }
     }

@@ -38,8 +38,17 @@ const lobbyPlayersList= document.getElementById('lobby-players-list');
 const miniHeader      = document.getElementById('mini-header');
 const playerAvatarMini= document.getElementById('player-avatar-mini');
 const playerNameDisplay = document.getElementById('player-name-display');
+const btnShop         = document.getElementById('btn-shop');
+const btnRerollJob    = document.getElementById('btn-reroll-job');
+const shopModal       = document.getElementById('shop-modal');
+const btnCloseShop    = document.getElementById('btn-close-shop');
+const shopCasesList   = document.getElementById('shop-cases-list');
+const inventoryList   = document.getElementById('inventory-list');
+const shopJahudiCoins = document.getElementById('shop-jahudi-coins');
+
 const playerCharDisplay = document.getElementById('player-character-display');
 const statMoney       = document.getElementById('stat-money');
+const statJahudiCoins = document.getElementById('stat-jahudi-coins');
 const statSalary      = document.getElementById('stat-salary');
 const statHappiness   = document.getElementById('stat-happiness');
 const statKnowledge   = document.getElementById('stat-knowledge');
@@ -190,6 +199,7 @@ function updateGameHeader() {
 function updateStats() {
   if (!myPlayer) return;
   statMoney.textContent = (myPlayer.money || 0).toLocaleString() + ' €';
+  if(statJahudiCoins) statJahudiCoins.textContent = (myPlayer.jahudiCoins || 0);
   statSalary.textContent = (myPlayer.salary || 0).toLocaleString() + ' €';
   statHappiness.textContent = myPlayer.happiness || 0;
   statKnowledge.textContent = myPlayer.knowledge || 0;
@@ -200,8 +210,11 @@ function updateStats() {
     const assets = myPlayer.assets || {};
     if (assets.house) assetsRow.innerHTML += `<div class="asset-badge">🏠 ${assets.house}</div>`;
     if (assets.vehicle) assetsRow.innerHTML += `<div class="asset-badge">🚗 ${assets.vehicle}</div>`;
-    if (assets.spouse) assetsRow.innerHTML += `<div class="asset-badge">💍 Verheiratet</div>`;
-    if (assets.children > 0) assetsRow.innerHTML += `<div class="asset-badge">👶 ${assets.children} Kinder</div>`;
+    
+    const inv = myPlayer.investments || {};
+    if (inv.stocks > 0) assetsRow.innerHTML += `<div class="asset-badge">📈 Aktien: ${inv.stocks.toLocaleString()} €</div>`;
+    if (inv.crypto > 0) assetsRow.innerHTML += `<div class="asset-badge">🚀 Krypto: ${inv.crypto.toLocaleString()} €</div>`;
+    if (inv.realEstate > 0) assetsRow.innerHTML += `<div class="asset-badge">🏗️ Immobilien: ${inv.realEstate.toLocaleString()} €</div>`;
   }
 }
 
@@ -678,16 +691,106 @@ socket.on('player_retired', ({ player, finalScore }) => {
 
   retireFinalScore.textContent = finalScore.toLocaleString() + ' Punkte';
   const assets = player.assets || {};
+  const inv = player.investments || {};
   retireBreakdown.innerHTML = `
     💰 Geld: ${(player.money || 0).toLocaleString()} €<br>
     🏠 Haus: ${assets.houseValue ? assets.houseValue.toLocaleString() + ' €' : '–'}<br>
     🚗 Auto: ${assets.vehicleValue ? assets.vehicleValue.toLocaleString() + ' €' : '–'}<br>
-    💍 Ehepartner: ${assets.spouse ? '+100.000 €' : '–'}<br>
-    👶 Kinder: ${assets.children > 0 ? `${assets.children} × 50.000 €` : '–'}<br>
+    📈 Aktien: ${inv.stocks > 0 ? inv.stocks.toLocaleString() + ' €' : '–'}<br>
+    🚀 Krypto: ${inv.crypto > 0 ? inv.crypto.toLocaleString() + ' €' : '–'}<br>
+    🏗️ Immobilien: ${inv.realEstate > 0 ? inv.realEstate.toLocaleString() + ' €' : '–'}<br>
     ❤️ Glück: ${(player.happiness || 0)} × 1.000 €<br>
     🧠 Wissen: ${(player.knowledge || 0)} × 500 €
   `;
 });
+
+
+// ── JAHUDI SHOP ────────────────────────────────────────────────
+if (btnShop) {
+  btnShop.addEventListener('click', () => {
+    shopModal.style.display = 'block';
+    updateShopUI();
+  });
+}
+if (btnRerollJob) {
+  btnRerollJob.addEventListener('click', () => {
+    if (confirm("Möchtest du dein Gehalt wirklich rerollen? (Max ±50k €)")) {
+      socket.emit('reroll_job', { roomCode });
+    }
+  });
+}
+if (btnCloseShop) {
+  btnCloseShop.addEventListener('click', () => {
+    shopModal.style.display = 'none';
+  });
+}
+
+function updateShopUI() {
+  if (!myPlayer) return;
+  shopJahudiCoins.textContent = myPlayer.jahudiCoins || 0;
+  
+  // Render Inventory
+  inventoryList.innerHTML = '';
+  const inv = myPlayer.inventory || [];
+  if (inv.length === 0) {
+    inventoryList.innerHTML = '<div style="color:var(--text-secondary); width:100%; text-align:center;">Leer</div>';
+  } else {
+    inv.forEach(item => {
+      const el = document.createElement('div');
+      el.style = 'background:var(--surface-light); padding:10px; border-radius:10px; flex: 1 1 calc(50% - 10px); text-align:center; border: 1px solid var(--border);';
+      el.innerHTML = `
+        <div style="font-size:12px; color:var(--text-secondary);">${item.rarity}</div>
+        <div style="font-weight:bold; margin: 5px 0;">${item.name}</div>
+        <button class="btn-primary" style="padding:6px; font-size:12px; margin-top:5px;" onclick="equipCosmetic('${item.id}')">
+          ${myPlayer.activeOutfit && item.id.includes(myPlayer.activeOutfit) ? 'Ausgerüstet' : 'Ausrüsten'}
+        </button>
+      `;
+      inventoryList.appendChild(el);
+    });
+  }
+}
+
+window.equipCosmetic = function(id) {
+  socket.emit('equip_cosmetic', { roomCode: currentRoomCode, cosmeticId: id });
+  alert('Cosmetic ausgerüstet!');
+  shopModal.style.display = 'none';
+};
+
+window.buyCase = function(id) {
+  socket.emit('buy_case', { roomCode: currentRoomCode, caseId: id });
+};
+
+socket.on('case_opened', ({ cosmetic, jahudiCoins }) => {
+  if (myPlayer) myPlayer.jahudiCoins = jahudiCoins;
+  alert('Du hast gezogen: ' + cosmetic.name + ' (' + cosmetic.rarity + ')!');
+  updateShopUI();
+  updateStats();
+});
+
+socket.on('case_error', ({ message }) => {
+  alert('Fehler: ' + message);
+});
+
+// Mock Cases Data - could also be loaded from server, but for simplicity here it is hardcoded to render the UI
+const casesDataMock = [
+  { id: 'starter_case', name: 'Starter Jahudi Case', cost: 100, desc: 'Basis-Outfits und Island Skins' },
+  { id: 'premium_case', name: 'Premium White Party Case', cost: 500, desc: 'Garantiert White Party Outfits' }
+];
+
+if (shopCasesList) {
+  casesDataMock.forEach(c => {
+    const el = document.createElement('div');
+    el.style = 'background:var(--surface-light); padding:15px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; border: 1px solid var(--border);';
+    el.innerHTML = `
+      <div>
+        <div style="font-weight:bold;">${c.name}</div>
+        <div style="font-size:12px; color:var(--text-secondary);">${c.desc}</div>
+      </div>
+      <button class="btn-primary" style="width: auto; padding: 10px 15px; background:#a855f7;" onclick="buyCase('${c.id}')">${c.cost} 💎</button>
+    `;
+    shopCasesList.appendChild(el);
+  });
+}
 
 // ── GAME FINISHED ──────────────────────────────────────────────
 socket.on('game_finished', ({ rankings, winner }) => {
@@ -709,3 +812,76 @@ socket.on('host_disconnected', () => {
   alert('Der Host hat das Spiel verlassen.');
   showScreen('join');
 });
+
+
+const btnOpenCasino = document.getElementById('btn-open-casino');
+const casinoModal = document.getElementById('casino-modal');
+const btnCloseCasino = document.getElementById('btn-close-casino');
+const btnBlackjack = document.getElementById('btn-casino-blackjack');
+const btnChicken = document.getElementById('btn-casino-chicken');
+const casinoGameArea = document.getElementById('casino-game-area');
+const casinoGameTitle = document.getElementById('casino-game-title');
+const casinoCash = document.getElementById('casino-cash');
+const casinoResult = document.getElementById('casino-result');
+const btnBets = document.querySelectorAll('.btn-bet');
+
+let currentCasinoGame = '';
+
+btnOpenCasino.addEventListener('click', () => {
+  casinoModal.style.display = 'block';
+  casinoGameArea.style.display = 'none';
+  casinoResult.innerText = '';
+  if(myPlayerState) casinoCash.innerText = myPlayerState.money.toLocaleString();
+});
+
+btnCloseCasino.addEventListener('click', () => {
+  casinoModal.style.display = 'none';
+});
+
+btnBlackjack.addEventListener('click', () => {
+  currentCasinoGame = 'blackjack';
+  casinoGameTitle.innerText = '🃏 Blackjack (50/50)';
+  casinoGameArea.style.display = 'block';
+  casinoResult.innerText = '';
+  if(myPlayerState) casinoCash.innerText = myPlayerState.money.toLocaleString();
+});
+
+btnChicken.addEventListener('click', () => {
+  currentCasinoGame = 'chicken';
+  casinoGameTitle.innerText = '🐔 Chicken (60% Win, 2x)';
+  casinoGameArea.style.display = 'block';
+  casinoResult.innerText = '';
+  if(myPlayerState) casinoCash.innerText = myPlayerState.money.toLocaleString();
+});
+
+btnBets.forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (!currentCasinoGame) return;
+    const pct = parseInt(btn.getAttribute('data-pct'));
+    socket.emit('casino_bet', { roomCode: currentRoom, percentage: pct, game: currentCasinoGame });
+  });
+});
+
+socket.on('casino_result', (data) => {
+  if (data.success) {
+    if (data.win) {
+      casinoResult.style.color = '#22c55e';
+      casinoResult.innerText = 'Gewonnen! +$' + data.amount.toLocaleString();
+    } else {
+      casinoResult.style.color = '#ef4444';
+      casinoResult.innerText = 'Verloren! -$' + data.amount.toLocaleString();
+    }
+  } else {
+    casinoResult.style.color = '#eab308';
+    casinoResult.innerText = data.message || 'Fehler beim Wetten.';
+  }
+});
+
+// Update cash when gamestate updates
+const originalUpdateUI = updateUI;
+updateUI = (room) => {
+  originalUpdateUI(room);
+  if (myPlayerState && casinoModal.style.display === 'block') {
+    casinoCash.innerText = myPlayerState.money.toLocaleString();
+  }
+};
