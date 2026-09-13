@@ -88,7 +88,8 @@ class DubaiBoard3D {
     sun.shadow.camera.right = 95;
     sun.shadow.camera.top = 95;
     sun.shadow.camera.bottom = -95;
-    sun.shadow.bias = -0.0005;
+    sun.shadow.bias = -0.001;
+    sun.shadow.normalBias = 0.02;
     this.scene.add(sun);
 
     // Cyan rim light from ocean
@@ -156,7 +157,7 @@ class DubaiBoard3D {
     const lawnGeo = new THREE.CylinderGeometry(28, 30, 0.4, 32);
     const lawnMat = new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.85 });
     const lawn = new THREE.Mesh(lawnGeo, lawnMat);
-    lawn.position.set(cx, 1.2, cz);
+    lawn.position.set(cx, 1.200, cz);
     lawn.receiveShadow = true;
     this.scene.add(lawn);
 
@@ -225,7 +226,7 @@ class DubaiBoard3D {
     const plazaGeo = new THREE.CylinderGeometry(32, 34, 0.4, 32);
     const plazaMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7, metalness: 0.3 });
     const plaza = new THREE.Mesh(plazaGeo, plazaMat);
-    plaza.position.set(cx, 1.2, cz);
+    plaza.position.set(cx, 1.204, cz);
     plaza.receiveShadow = true;
     this.scene.add(plaza);
 
@@ -278,7 +279,7 @@ class DubaiBoard3D {
     const subLawnGeo = new THREE.CylinderGeometry(30, 32, 0.4, 32);
     const subLawnMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.9 });
     const subLawn = new THREE.Mesh(subLawnGeo, subLawnMat);
-    subLawn.position.set(cx, 1.2, cz);
+    subLawn.position.set(cx, 1.208, cz);
     subLawn.receiveShadow = true;
     this.scene.add(subLawn);
 
@@ -302,7 +303,7 @@ class DubaiBoard3D {
     const casinoPlazaGeo = new THREE.CylinderGeometry(28, 30, 0.4, 32);
     const casinoPlazaMat = new THREE.MeshStandardMaterial({ color: 0xca8a04, roughness: 0.5, metalness: 0.4 });
     const casinoPlaza = new THREE.Mesh(casinoPlazaGeo, casinoPlazaMat);
-    casinoPlaza.position.set(cx, 1.2, cz);
+    casinoPlaza.position.set(cx, 1.212, cz);
     casinoPlaza.receiveShadow = true;
     this.scene.add(casinoPlaza);
 
@@ -360,7 +361,7 @@ class DubaiBoard3D {
     const beachGeo = new THREE.CylinderGeometry(32, 34, 0.4, 32);
     const beachMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.9 });
     const beach = new THREE.Mesh(beachGeo, beachMat);
-    beach.position.set(cx, 1.2, cz);
+    beach.position.set(cx, 1.216, cz);
     beach.receiveShadow = true;
     this.scene.add(beach);
 
@@ -727,7 +728,7 @@ class DubaiBoard3D {
   mapTo3D(x, y) {
     return new THREE.Vector3(
       ((x - 50) / 50) * 64, // -64 .. +64
-      1.3,
+      1.45,
       ((y - 50) / 50) * 44  // -44 .. +44
     );
   }
