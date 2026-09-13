@@ -1,0 +1,115 @@
+[
+  {
+    "id": "career_choice",
+    "title": "Karriere-Entscheidung",
+    "description": "Du stehst an einer Weggabelung. Welchen Weg schlägst du ein?",
+    "icon": "🎯",
+    "fieldType": "branch",
+    "options": [
+      { "id": "studium", "label": "🎓 Studium (Mehr Gehalt, später Start)", "pathIndex": 1, "effects": { "money": -30000, "knowledge": 40 } },
+      { "id": "direkteinstieg", "label": "💼 Direkteinstieg (Sofort Geld, weniger Gehalt)", "pathIndex": 0, "effects": { "money": 20000, "knowledge": 0 } }
+    ]
+  },
+  {
+    "id": "job_offer",
+    "title": "Jobangebot!",
+    "description": "Du hast zwei Jobangebote. Was wählst du?",
+    "icon": "📋",
+    "fieldType": "career",
+    "options": [
+      { "id": "secure_job", "label": "🏢 Sicherer Konzern-Job (+80k/Jahr)", "effects": { "salary": 80000, "happiness": 10 } },
+      { "id": "startup", "label": "🚀 Startup-Risiko (Chance auf 500k/Jahr)", "effects": { "salary": 20000, "happiness": 30, "startupRisk": true } }
+    ]
+  },
+  {
+    "id": "marriage",
+    "title": "HEIRATSANTRAG! 💍",
+    "description": "Du hast die Liebe deines Lebens getroffen. Wie lautet die Antwort?",
+    "icon": "💍",
+    "fieldType": "family",
+    "options": [
+      { "id": "yes_marry", "label": "💒 JA! Traumhochzeit (-50k, +Happiness)", "effects": { "money": -50000, "happiness": 100, "spouse": true } },
+      { "id": "no_marry", "label": "😎 Nein, ich bleibe Single & reich", "effects": { "happiness": -10 } }
+    ]
+  },
+  {
+    "id": "have_children",
+    "title": "Nachwuchs!",
+    "description": "Du und dein Partner überlegt, Kinder zu bekommen. Was sagt ihr?",
+    "icon": "👶",
+    "fieldType": "family",
+    "options": [
+      { "id": "yes_kids", "label": "👨‍👩‍👦 Kinder! (-30k/Zahltag, +200k Endwert)", "effects": { "children": 1, "happiness": 60, "salaryReduction": 30000 } },
+      { "id": "no_kids", "label": "🐕 Lieber ein Hund (+ Glück)", "effects": { "happiness": 30 } }
+    ]
+  },
+  {
+    "id": "house_purchase",
+    "title": "Immobilienkauf!",
+    "description": "Du kannst jetzt eine Immobilie kaufen. Was passt zu dir?",
+    "icon": "🏠",
+    "fieldType": "house",
+    "options": [
+      { "id": "apartment", "label": "🏢 Kleines Apartment (-100k)", "effects": { "money": -100000, "happiness": 20, "house": "apartment", "houseValue": 100000 } },
+      { "id": "family_house", "label": "🏡 Familienhaus (-300k)", "effects": { "money": -300000, "happiness": 50, "house": "family_house", "houseValue": 300000 } },
+      { "id": "villa", "label": "🏰 Luxusvilla (-700k)", "effects": { "money": -700000, "happiness": 100, "house": "villa", "houseValue": 700000 } }
+    ]
+  },
+  {
+    "id": "investment",
+    "title": "Investitions-Entscheidung",
+    "description": "Du hast 100.000 € zu investieren. Wohin damit?",
+    "icon": "📊",
+    "fieldType": "action",
+    "options": [
+      { "id": "stocks", "label": "📈 Aktien (Sicher, +60k)", "effects": { "money": -100000, "investReturn": 160000, "knowledge": 15 } },
+      { "id": "crypto_inv", "label": "🚀 Krypto (Riskant, 50% Chance auf +400k)", "effects": { "money": -100000, "investReturn": -100000, "cryptoGamble": true, "knowledge": 5 } },
+      { "id": "real_estate", "label": "🏗️ Immobilien (Sicher, +80k langfristig)", "effects": { "money": -100000, "investReturn": 180000, "knowledge": 10 } }
+    ]
+  },
+  {
+    "id": "education",
+    "title": "Master-Studium?",
+    "description": "Du hast die Chance, einen Master zu machen. Das kostet Zeit und Geld, aber bringt später mehr.",
+    "icon": "🎓",
+    "fieldType": "knowledge",
+    "options": [
+      { "id": "yes_master", "label": "📚 Master machen (-40k, +Gehalt später)", "effects": { "money": -40000, "knowledge": 50, "salaryBonus": 30000 } },
+      { "id": "no_master", "label": "💼 Lieber direkt weiterarbeiten", "effects": { "knowledge": 5 } }
+    ]
+  },
+  {
+    "id": "car_upgrade",
+    "title": "Neues Auto!",
+    "description": "Es ist Zeit für ein Upgrade. Welches Auto passt zu deinem Lifestyle?",
+    "icon": "🚗",
+    "fieldType": "action",
+    "options": [
+      { "id": "bmw", "label": "🚗 BMW (-80k, okay für's Ego)", "effects": { "money": -80000, "happiness": 30, "vehicle": "bmw", "vehicleValue": 60000 } },
+      { "id": "porsche", "label": "🏎️ Porsche (-200k, krass)", "effects": { "money": -200000, "happiness": 60, "vehicle": "porsche", "vehicleValue": 150000 } },
+      { "id": "lamborghini", "label": "🐂 Lamborghini (-500k, you made it)", "effects": { "money": -500000, "happiness": 100, "vehicle": "lamborghini", "vehicleValue": 400000 } }
+    ]
+  },
+  {
+    "id": "move_abroad",
+    "title": "Auswandern!",
+    "description": "Dubai, Zug oder Cayman Islands? Du überlegst ins Ausland zu ziehen.",
+    "icon": "✈️",
+    "fieldType": "action",
+    "options": [
+      { "id": "dubai", "label": "🏙️ Dubai (0% Steuer, Hitze, +Salary)", "effects": { "money": -20000, "happiness": 40, "salaryBonus": 50000, "knowledge": 10 } },
+      { "id": "stay", "label": "🇩🇪 In Deutschland bleiben (gemütlich)", "effects": { "happiness": 10 } }
+    ]
+  },
+  {
+    "id": "retire_decision",
+    "title": "Frühpension?",
+    "description": "Du könntest jetzt schon in Rente gehen oder noch mehr arbeiten.",
+    "icon": "🏝️",
+    "fieldType": "action",
+    "options": [
+      { "id": "early_retire", "label": "🌴 Frühpension (sofort Endwertung)", "effects": { "earlyRetire": true, "happiness": 80 } },
+      { "id": "keep_working", "label": "💪 Noch 5 Felder weitermachen", "effects": { "money": 100000, "happiness": -10 } }
+    ]
+  }
+]

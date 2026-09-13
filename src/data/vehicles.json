@@ -1,0 +1,7 @@
+[
+  { "id": "vespa", "name": "Vespa", "icon": "🛵", "price": 5000, "value": 3000, "description": "Praktisch, günstig, uncool." },
+  { "id": "bmw", "name": "BMW", "icon": "🚗", "price": 80000, "value": 60000, "description": "Der klassische 'I made it'-Wagen." },
+  { "id": "porsche", "name": "Porsche", "icon": "🏎️", "price": 200000, "value": 150000, "description": "Wochenend-Auto, aber du fährst täglich." },
+  { "id": "lamborghini", "name": "Lamborghini", "icon": "🐂", "price": 500000, "value": 400000, "description": "Du hast es geschafft. Oder willst es zeigen." },
+  { "id": "private_jet", "name": "Privatjet", "icon": "✈️", "price": 10000000, "value": 8000000, "description": "Für die, denen Erste Klasse zu voll ist." }
+]

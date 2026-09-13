@@ -1,0 +1,122 @@
+[
+  {
+    "id": "crypto_trader",
+    "name": "Crypto Day-Trader",
+    "icon": "🚀",
+    "description": "HODL oder REKT – es gibt keinen Mittelweg.",
+    "startingSalary": 0,
+    "salaryPerPayday": 40000,
+    "level": 1, "maxLevel": 3,
+    "promotionBonus": 100000,
+    "promotionTitle": ["Shitcoin Trader", "Altcoin King", "Bitcoin Whale"],
+    "salaryPerLevel": [40000, 90000, 200000]
+  },
+  {
+    "id": "tech_ceo",
+    "name": "Tech-Startup CEO",
+    "icon": "💻",
+    "description": "Disrupt everything. Schlaf optional.",
+    "startingSalary": 20000,
+    "salaryPerPayday": 55000,
+    "level": 1, "maxLevel": 3,
+    "promotionBonus": 150000,
+    "promotionTitle": ["Gründer", "Series-A CEO", "Unicorn CEO"],
+    "salaryPerLevel": [55000, 120000, 300000]
+  },
+  {
+    "id": "private_equity",
+    "name": "Private Equity (Rothschild)",
+    "icon": "🏦",
+    "description": "Firmen kaufen, zerlegen, verkaufen. Rinse & repeat.",
+    "startingSalary": 80000,
+    "salaryPerPayday": 75000,
+    "level": 1, "maxLevel": 3,
+    "promotionBonus": 200000,
+    "promotionTitle": ["Junior Analyst", "VP", "Managing Director"],
+    "salaryPerLevel": [75000, 150000, 400000]
+  },
+  {
+    "id": "casino_streamer",
+    "name": "Casino Streamer",
+    "icon": "🎰",
+    "description": "5.000 Sponsoren zahlen dein Gambling. Perfektes Business.",
+    "startingSalary": 5000,
+    "salaryPerPayday": 35000,
+    "level": 1, "maxLevel": 3,
+    "promotionBonus": 80000,
+    "promotionTitle": ["Twitch Nobody", "Sponsored Streamer", "Gambling God"],
+    "salaryPerLevel": [35000, 70000, 180000]
+  },
+  {
+    "id": "nft_artist",
+    "name": "NFT Artist",
+    "icon": "🖼️",
+    "description": "JPEG für 50 ETH. Die Leute kaufen's.",
+    "startingSalary": 0,
+    "salaryPerPayday": 20000,
+    "level": 1, "maxLevel": 3,
+    "promotionBonus": 60000,
+    "promotionTitle": ["JPEG Maker", "Blue Chip Artist", "Bored Ape Creator"],
+    "salaryPerLevel": [20000, 60000, 500000]
+  },
+  {
+    "id": "hedge_fund",
+    "name": "Hedge Fund Manager",
+    "icon": "📈",
+    "description": "2% Gebühr. 20% Gewinnbeteiligung. Muss man nicht können.",
+    "startingSalary": 100000,
+    "salaryPerPayday": 80000,
+    "level": 1, "maxLevel": 3,
+    "promotionBonus": 250000,
+    "promotionTitle": ["Junior PM", "Fund Manager", "Billionaire Trader"],
+    "salaryPerLevel": [80000, 180000, 500000]
+  },
+  {
+    "id": "venture_capitalist",
+    "name": "Venture Capitalist",
+    "icon": "💰",
+    "description": "Investiere in 100 Startups. Hoffe dass 1 explodiert.",
+    "startingSalary": 50000,
+    "salaryPerPayday": 60000,
+    "level": 1, "maxLevel": 3,
+    "promotionBonus": 180000,
+    "promotionTitle": ["Angel Investor", "VC Partner", "Decacorn Backer"],
+    "salaryPerLevel": [60000, 130000, 350000]
+  },
+  {
+    "id": "influencer",
+    "name": "Finance Influencer",
+    "icon": "📱",
+    "description": "Schlechter Börsenrat für 1 Mio. Follower. Kein Haftungsrisiko.",
+    "startingSalary": 2000,
+    "salaryPerPayday": 25000,
+    "level": 1, "maxLevel": 3,
+    "promotionBonus": 50000,
+    "promotionTitle": ["Micro-Influencer", "Verified Creator", "Bloomberg Rival"],
+    "salaryPerLevel": [25000, 65000, 200000]
+  },
+  {
+    "id": "tax_consultant",
+    "name": "Steueroptimierungs-Berater",
+    "icon": "🧾",
+    "description": "Offiziell: Steuerberater. Inoffiziell: Steuerhinterziehungs-Gott.",
+    "startingSalary": 60000,
+    "salaryPerPayday": 65000,
+    "level": 1, "maxLevel": 3,
+    "promotionBonus": 160000,
+    "promotionTitle": ["Steuerberater", "Offshore-Spezialist", "Panama-Papers-Legende"],
+    "salaryPerLevel": [65000, 140000, 380000]
+  },
+  {
+    "id": "onlyfans_manager",
+    "name": "OnlyFans Agency Manager",
+    "icon": "💅",
+    "description": "Talent scouten, 30% cut nehmen, Lamborghini kaufen.",
+    "startingSalary": 10000,
+    "salaryPerPayday": 45000,
+    "level": 1, "maxLevel": 3,
+    "promotionBonus": 120000,
+    "promotionTitle": ["Solo Manager", "Agency Owner", "Content Empire Boss"],
+    "salaryPerLevel": [45000, 100000, 280000]
+  }
+]

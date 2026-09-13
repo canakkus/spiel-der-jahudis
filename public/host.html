@@ -1,115 +1,237 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Spiel der Jahudis - Dubai 3D Host</title>
-  <link rel="stylesheet" href="/css/host.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spiel der Jahudis 🎮 TV Host</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0b1329;
+      --surface: rgba(255,255,255,0.05);
+      --border: rgba(255,255,255,0.08);
+      --gold: #f59e0b;
+      --green: #22c55e;
+      --pink: #ec4899;
+      --blue: #3b82f6;
+    }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: #f8fafc; overflow: hidden; height: 100vh; width: 100vw; }
+
+    /* ── LOBBY ─────────────────────────────────────────────── */
+    #lobby-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100vh; width: 100vw; background: linear-gradient(135deg, #0b1329 0%, #1e293b 50%, #0f2042 100%);
+      padding: 40px; gap: 32px;
+    }
+    .lobby-title { font-size: clamp(2rem, 5vw, 4rem); font-weight: 900; text-align: center; }
+    .lobby-title span { background: linear-gradient(90deg, #f59e0b, #ec4899, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .lobby-content { display: flex; gap: 48px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+    .qr-section { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    #qr-code-img { width: 200px; height: 200px; border-radius: 16px; border: 3px solid var(--gold); }
+    .room-code-big { font-size: 4rem; font-weight: 900; letter-spacing: 12px; color: var(--gold); text-align: center; }
+    .join-url { color: #94a3b8; font-size: 14px; text-align: center; max-width: 260px; word-break: break-all; }
+    #lobby-players-grid { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; max-width: 700px; }
+    .player-card {
+      background: var(--surface); border: 2px solid; border-radius: 16px; padding: 20px;
+      display: flex; align-items: center; gap: 16px; min-width: 220px;
+      backdrop-filter: blur(12px); transition: all 0.3s;
+    }
+    .player-avatar { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .player-name { font-weight: 700; font-size: 16px; }
+    .player-outfit { font-size: 12px; margin-top: 4px; }
+    .custom-url { display: flex; gap: 8px; }
+    .custom-url input { background: rgba(255,255,255,0.07); border: 1px solid var(--border); color: #f8fafc; padding: 8px 12px; border-radius: 8px; font-size: 14px; flex: 1; }
+    .custom-url button { background: var(--blue); color: #fff; border: none; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 700; }
+    #start-game-btn {
+      background: linear-gradient(135deg, var(--gold), var(--pink));
+      color: #fff; border: none; padding: 18px 48px; border-radius: 50px; font-size: 1.4rem; font-weight: 900; cursor: pointer;
+      box-shadow: 0 0 40px rgba(245,158,11,0.4); transition: all 0.2s; letter-spacing: 2px;
+    }
+    #start-game-btn:hover { transform: scale(1.05); box-shadow: 0 0 60px rgba(245,158,11,0.6); }
+
+    /* ── GAME ─────────────────────────────────────────────── */
+    #game-screen { display: none; flex-direction: column; height: 100vh; width: 100vw; }
+    #top-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px; background: rgba(0,0,0,0.6); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border); height: 56px; z-index: 10;
+    }
+    .game-logo { font-size: 1.1rem; font-weight: 900; background: linear-gradient(90deg, var(--gold), var(--pink)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    #room-code-game { font-size: 1rem; font-weight: 700; color: var(--gold); letter-spacing: 4px; }
+    #turn-text { font-size: 0.95rem; color: #cbd5e1; max-width: 400px; text-align: center; }
+    #board-canvas { flex: 1; width: 100%; }
+    #bottom-bar {
+      display: flex; gap: 12px; padding: 10px 16px; background: rgba(0,0,0,0.7); backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border); overflow-x: auto; align-items: flex-start; min-height: 120px;
+    }
+    .player-score-card {
+      background: var(--surface); border: 2px solid; border-radius: 12px; padding: 10px 14px;
+      min-width: 180px; flex-shrink: 0; transition: all 0.3s;
+    }
+    .player-score-card.active-turn { box-shadow: 0 0 24px currentColor; transform: translateY(-4px); }
+    .player-score-card.retired { opacity: 0.6; }
+    .score-header { font-weight: 700; font-size: 13px; margin-bottom: 6px; display: flex; flex-direction: column; gap: 2px; }
+    .score-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 12px; color: #94a3b8; }
+    .stat-item.money { color: var(--green); font-weight: 700; }
+
+    /* ── OVERLAYS ─────────────────────────────────────────── */
+    .overlay {
+      display: none; position: fixed; inset: 0; z-index: 1000;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+    }
+    .overlay.active { display: flex; }
+
+    /* Wheel */
+    #wheel-overlay { flex-direction: column; gap: 20px; }
+    #wheel-player-name { font-size: 1.6rem; font-weight: 900; color: var(--gold); }
+    #wheel-canvas { border-radius: 50%; box-shadow: 0 0 60px rgba(245,158,11,0.5); }
+
+    /* Action Card */
+    #action-overlay { flex-direction: column; }
+    .action-card {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border: 3px solid var(--gold); border-radius: 24px; padding: 48px 56px;
+      text-align: center; max-width: 520px; width: 90%; box-shadow: 0 0 80px rgba(245,158,11,0.3);
+      animation: cardPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes cardPop { from { transform: scale(0.6) rotate(-8deg); opacity: 0; } to { transform: scale(1) rotate(0deg); opacity: 1; } }
+    #card-icon { font-size: 5rem; display: block; margin-bottom: 16px; }
+    #card-title { font-size: 1.8rem; font-weight: 900; color: var(--gold); margin-bottom: 12px; }
+    #card-desc { font-size: 1rem; color: #cbd5e1; margin-bottom: 20px; line-height: 1.6; }
+    #card-rewards { font-size: 1.4rem; font-weight: 700; }
+
+    /* Payday */
+    #payday-overlay { flex-direction: column; pointer-events: none; }
+    .payday-card {
+      background: linear-gradient(135deg, #052e16, #14532d);
+      border: 4px solid var(--green); border-radius: 24px; padding: 40px 80px;
+      text-align: center; animation: payPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes payPop { from { transform: scale(0.5); opacity:0; } to { transform: scale(1); opacity:1; } }
+    .payday-label { font-size: 2rem; font-weight: 900; color: var(--green); margin-bottom: 8px; }
+    #payday-amount { font-size: 3rem; font-weight: 900; color: #fff; }
+
+    /* Branch / Decision TV */
+    .wait-card {
+      background: linear-gradient(135deg, #1e1b4b, #312e81);
+      border: 3px solid var(--blue); border-radius: 24px; padding: 48px 56px;
+      text-align: center; max-width: 480px;
+    }
+    .wait-card h2 { font-size: 1.4rem; color: #a5b4fc; margin-bottom: 16px; }
+    .wait-card p { font-size: 1.1rem; font-weight: 700; color: #fff; }
+    .wait-dots { font-size: 2rem; animation: blink 1.2s infinite; }
+    @keyframes blink { 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+
+    /* Endgame */
+    #endgame-overlay { flex-direction: column; }
+    .endgame-card {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border: 3px solid var(--gold); border-radius: 24px; padding: 48px;
+      max-width: 560px; width: 90%; text-align: center;
+    }
+    .endgame-title { font-size: 2.2rem; font-weight: 900; color: var(--gold); margin-bottom: 24px; }
+    #endgame-rankings { text-align: left; }
+  </style>
 </head>
 <body>
-  <div class="bg-mesh"></div>
 
-  <!-- HEADER -->
-  <header>
-    <div class="logo-area">
-      <span style="font-size: 32px;">🌴</span>
-      <div class="logo-title">SPIEL DER JAHUDIS • DUBAI EDITION</div>
-    </div>
-    <div style="display: flex; align-items: center; gap: 16px;">
-      <button id="btn-sound-toggle" class="sound-toggle-btn" onclick="window.soundEngine.init(); window.soundEngine.play('kaching'); this.innerHTML='🔊 Sound Aktiv!'; this.classList.add('active');">
-        🔊 Sound aktivieren
-      </button>
-      <div class="room-badge" id="room-badge" style="display: none;">
-        <span class="room-code-label">Raum-Code:</span>
-        <span class="room-code-value" id="header-room-code">----</span>
+<!-- ═══════ LOBBY ═══════════════════════════════════════════ -->
+<div id="lobby-screen">
+  <div class="lobby-title">🎮 <span>Spiel der Jahudis</span></div>
+  <div class="lobby-content">
+    <div class="qr-section">
+      <img id="qr-code-img" src="" alt="QR Code" />
+      <div class="room-code-big" id="room-code-display">····</div>
+      <div class="join-url" id="join-url-display">Verbinde Handys...</div>
+      <div class="custom-url">
+        <input id="custom-url-input" type="text" placeholder="Eigene URL (optional)" />
+        <button id="custom-url-btn">Set</button>
       </div>
     </div>
-  </header>
-
-  <!-- 1. LOBBY VIEW -->
-  <main id="lobby-view" class="view active">
-    <div class="lobby-hero">
-      <div class="qr-box">
-        <img id="qr-image" src="" alt="QR Code zum Beitreten">
-        <div class="qr-hint">Mit Handy scannen</div>
-      </div>
-      <div class="join-info">
-        <h2>Mach dein Handy zum Controller!</h2>
-        <div class="join-steps">
-          <div>1. Handy-Kamera auf den QR-Code richten</div>
-          <div>2. Oder im Browser öffnen: <span id="join-url-text">http://...</span></div>
-          <div>3. Raum-Code eingeben: <span id="lobby-room-code" style="font-size: 28px;">----</span></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Players Lobby Grid -->
-    <div class="players-section">
-      <div class="players-title">
-        <span>👥 Beigetretene Jahudis:</span>
-        <span id="player-count">(0 Spieler)</span>
-      </div>
-      <div class="players-grid" id="lobby-players-grid">
-        <!-- Dynamic Player Cards will appear here -->
-      </div>
-    </div>
-
-    <button id="btn-start-game" class="btn-start" disabled>Spiel starten (min. 1 Spieler)</button>
-  </main>
-
-  <!-- 2. GAME VIEW (3D BOARD) -->
-  <main id="game-view" class="view">
-    <div class="turn-banner" id="turn-banner">
-      <div id="turn-text">Warte auf Zug...</div>
-      <div id="game-subtext" style="color: var(--text-muted); font-size: 15px;">Drehrad am Handy drehen!</div>
-    </div>
-
-    <!-- 3D Three.js Container -->
-    <div class="board-container" id="board-3d-container" style="width: 100%; height: 100%; position: relative;">
-      <!-- Three.js Canvas will be inserted here -->
-    </div>
-
-    <!-- Bottom Leaderboard -->
-    <div class="leaderboard-bar" id="leaderboard-bar">
-      <!-- Player score cards -->
-    </div>
-  </main>
-
-  <!-- 3. WHEEL OVERLAY -->
-  <div class="overlay" id="wheel-overlay">
-    <div class="wheel-container">
-      <div class="wheel-status-text" id="wheel-player-name">Spieler dreht am Rad...</div>
-      <div class="wheel-wrapper">
-        <div class="wheel-pointer"></div>
-        <canvas id="wheel-canvas" class="wheel-canvas" width="380" height="380"></canvas>
-        <div class="wheel-center-pin"></div>
-      </div>
+    <div>
+      <div style="font-size:14px; color:#94a3b8; margin-bottom:12px; text-align:center;">Spieler in der Lobby:</div>
+      <div id="lobby-players-grid"></div>
     </div>
   </div>
+  <button id="start-game-btn">🚀 SPIEL STARTEN</button>
+</div>
 
-  <!-- 4. ACTION CARD OVERLAY -->
-  <div class="overlay" id="action-overlay">
-    <div class="action-card" id="action-card-element">
-      <div class="card-badge">DUBAI AKTIONSSCHICKSAL</div>
-      <div class="card-icon" id="card-icon">🏙️</div>
-      <div class="card-title" id="card-title">Wolkenkratzer Kauf</div>
-      <div class="card-desc" id="card-desc">Du kaufst dir ein exklusives Penthouse im Burj Tower!</div>
-      <div class="card-rewards" id="card-rewards">
-        <span style="color: #22c55e;">+80.000 €</span>
-      </div>
-    </div>
+<!-- ═══════ GAME ════════════════════════════════════════════ -->
+<div id="game-screen">
+  <div id="top-bar">
+    <div class="game-logo">🎮 Spiel der Jahudis</div>
+    <div id="turn-text">Warte auf Spieler...</div>
+    <div id="room-code-game"></div>
   </div>
+  <div id="board-canvas"></div>
+  <div id="bottom-bar">
+    <div id="score-cards" style="display:flex; gap:12px;"></div>
+  </div>
+</div>
 
-  <!-- Float Reactions Layer -->
-  <div id="reactions-container" style="position: fixed; inset: 0; pointer-events: none; z-index: 200;"></div>
+<!-- ═══════ OVERLAYS ════════════════════════════════════════ -->
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/three.min.js"></script>
-  <script src="/js/OrbitControls.js"></script>
-  <script src="/js/GLTFLoader.js"></script>
-  <script src="/js/audio.js"></script>
-  <script src="/js/boardData.js"></script>
-  <script src="/js/board3D.js"></script>
-  <script src="/js/host.js"></script>
+<!-- Wheel -->
+<div class="overlay" id="wheel-overlay">
+  <div id="wheel-player-name">Dreht das Rad...</div>
+  <canvas id="wheel-canvas" width="320" height="320"></canvas>
+</div>
+
+<!-- Action Card -->
+<div class="overlay" id="action-overlay">
+  <div class="action-card">
+    <span id="card-icon">⚡</span>
+    <div id="card-title">EVENT</div>
+    <div id="card-desc">Beschreibung...</div>
+    <div id="card-rewards"></div>
+  </div>
+</div>
+
+<!-- Payday Flash -->
+<div class="overlay" id="payday-overlay">
+  <div class="payday-card">
+    <div class="payday-label">💰 ZAHLTAG!</div>
+    <div id="payday-amount">+50.000 €</div>
+  </div>
+</div>
+
+<!-- Branch Waiting (TV) -->
+<div class="overlay" id="branch-overlay">
+  <div class="wait-card">
+    <h2>WEGWAHL!</h2>
+    <p><span id="branch-player-name">Spieler</span> wählt seinen Lebensweg...</p>
+    <div class="wait-dots">•••</div>
+  </div>
+</div>
+
+<!-- Decision Waiting (TV) -->
+<div class="overlay" id="decision-overlay-tv">
+  <div class="wait-card">
+    <h2>ENTSCHEIDUNG!</h2>
+    <p id="decision-title-tv">Spieler entscheidet...</p>
+    <div class="wait-dots">•••</div>
+  </div>
+</div>
+
+<!-- Endgame -->
+<div class="overlay" id="endgame-overlay">
+  <div class="endgame-card">
+    <div class="endgame-title">🏆 SPIEL BEENDET!</div>
+    <div id="endgame-rankings"></div>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/three.min.js"></script>
+<script src="/js/OrbitControls.js"></script>
+<script src="/js/GLTFLoader.js"></script>
+<script src="/js/audio.js"></script>
+<script src="/js/boardData.js"></script>
+<script src="/js/board3D.js"></script>
+<script src="/js/host.js"></script>
 </body>
 </html>

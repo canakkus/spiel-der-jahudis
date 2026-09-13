@@ -1,111 +1,227 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Spiel der Jahudis - Controller</title>
-  <link rel="stylesheet" href="/css/controller.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Spiel der Jahudis 🎮 Controller</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0b1329; --surface: rgba(255,255,255,0.06); --border: rgba(255,255,255,0.1);
+      --gold: #f59e0b; --green: #22c55e; --pink: #ec4899; --blue: #3b82f6; --red: #ef4444;
+    }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: #f8fafc; min-height: 100vh; }
+
+    /* ── Screens ──────────────────────────────────────────────── */
+    .screen { display: none; flex-direction: column; min-height: 100vh; padding: 24px 20px; }
+    .screen.active { display: flex; }
+
+    .screen-title { font-size: 1.5rem; font-weight: 900; text-align: center; margin-bottom: 8px; }
+    .screen-subtitle { color: #94a3b8; font-size: 14px; text-align: center; margin-bottom: 28px; }
+
+    /* Input fields */
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; font-weight: 600; }
+    .field input {
+      width: 100%; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; color: #f8fafc; font-size: 16px; font-family: inherit;
+      transition: border-color 0.2s; letter-spacing: 2px;
+    }
+    .field input:focus { outline: none; border-color: var(--blue); }
+
+    /* Buttons */
+    .btn { width: 100%; padding: 16px; border: none; border-radius: 16px; font-size: 1rem; font-weight: 900; cursor: pointer; transition: all 0.2s; font-family: inherit; margin-top: 8px; }
+    .btn-primary { background: linear-gradient(135deg, var(--blue), #6366f1); color: #fff; }
+    .btn-primary:active { transform: scale(0.97); }
+    .btn-spin {
+      background: linear-gradient(135deg, var(--gold), var(--pink));
+      color: #fff; font-size: 1.6rem; padding: 28px; border-radius: 50%; width: 180px; height: 180px;
+      border: none; cursor: pointer; font-family: inherit; font-weight: 900;
+      box-shadow: 0 0 60px rgba(245,158,11,0.5); transition: all 0.15s; display: block; margin: 20px auto;
+      align-self: center;
+    }
+    .btn-spin:active { transform: scale(0.93); }
+    .btn-spin:disabled { background: #334155; box-shadow: none; cursor: not-allowed; color: #64748b; }
+    .btn-option { background: var(--surface); border: 2px solid var(--border); color: #f8fafc; text-align: left; padding: 18px; border-radius: 16px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; display: block; width: 100%; margin-bottom: 12px; transition: all 0.2s; }
+    .btn-option:active { background: rgba(255,255,255,0.12); }
+    .btn-option.option-a { border-color: var(--blue); }
+    .btn-option.option-b { border-color: var(--green); }
+    .btn-option.option-c { border-color: var(--gold); }
+
+    /* Character cards */
+    .character-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+    .char-card {
+      background: var(--surface); border: 2px solid transparent; border-radius: 16px;
+      padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s;
+    }
+    .char-card.selected { transform: scale(1.04); }
+    .char-card .char-icon { font-size: 2.8rem; display: block; margin-bottom: 8px; }
+    .char-card .char-name { font-weight: 700; font-size: 14px; }
+    .char-card .char-desc { color: #94a3b8; font-size: 11px; margin-top: 4px; }
+
+    /* Player header mini */
+    #mini-header {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface); border-radius: 16px; padding: 14px 16px; margin-bottom: 16px;
+    }
+    #player-avatar-mini { font-size: 2rem; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    #player-name-display { font-weight: 900; font-size: 16px; }
+    #player-character-display { font-size: 12px; color: #94a3b8; }
+
+    /* Stats bar */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+    .stat-box { background: var(--surface); border-radius: 12px; padding: 12px; text-align: center; }
+    .stat-box .stat-label { font-size: 11px; color: #64748b; margin-bottom: 4px; }
+    .stat-box .stat-value { font-size: 1.1rem; font-weight: 900; }
+    .stat-money { color: var(--green); }
+    .stat-salary { color: var(--blue); }
+    .stat-happiness { color: var(--pink); }
+    .stat-knowledge { color: #06b6d4; }
+
+    /* Assets */
+    .assets-row { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
+    .asset-badge { background: var(--surface); border-radius: 12px; padding: 8px 14px; font-size: 14px; font-weight: 700; }
+
+    /* Turn indicator */
+    .turn-indicator { text-align: center; font-size: 14px; color: #64748b; margin-bottom: 12px; min-height: 24px; }
+    .turn-indicator.my-turn { color: var(--green); font-weight: 700; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{ opacity:1; } 50%{ opacity:0.6; } }
+
+    /* Lobby players */
+    .lobby-player { background: var(--surface); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+    .lobby-player .lp-icon { font-size: 1.6rem; }
+    .lobby-player .lp-name { font-weight: 700; }
+    .lobby-player .lp-career { font-size: 12px; color: #94a3b8; }
+
+    /* Career info */
+    .career-reveal {
+      background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(236,72,153,0.1));
+      border: 2px solid var(--gold); border-radius: 16px; padding: 20px; text-align: center; margin-bottom: 20px;
+    }
+    .career-icon { font-size: 3rem; display: block; }
+    .career-name { font-size: 1.3rem; font-weight: 900; color: var(--gold); margin: 8px 0; }
+    .career-salary { font-size: 14px; color: var(--green); }
+
+    /* Retirement screen */
+    .retirement-card {
+      background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(236,72,153,0.1));
+      border: 2px solid var(--gold); border-radius: 24px; padding: 32px; text-align: center; margin-top: 20px;
+    }
+    .retirement-card .retire-icon { font-size: 4rem; display: block; margin-bottom: 12px; }
+    .final-score { font-size: 2.4rem; font-weight: 900; color: var(--gold); margin: 12px 0; }
+
+    /* Decision / Path screens */
+    .decision-header { background: linear-gradient(135deg, #1e1b4b, #312e81); border-radius: 16px; padding: 20px; margin-bottom: 20px; text-align: center; }
+    .decision-header .dec-icon { font-size: 2.5rem; }
+    .decision-header h2 { font-size: 1.3rem; font-weight: 900; color: #a5b4fc; margin: 8px 0 4px; }
+    .decision-header p { color: #cbd5e1; font-size: 14px; line-height: 1.5; }
+
+    /* Error */
+    .error-msg { background: rgba(239,68,68,0.1); border: 1px solid var(--red); border-radius: 12px; padding: 14px; color: var(--red); font-size: 14px; margin-bottom: 16px; display: none; }
+  </style>
 </head>
 <body>
 
-  <!-- SCREEN 1: JOIN & CHARACTER SELECTION -->
-  <div id="join-screen" class="screen active">
-    <div class="join-container">
-      <div class="app-title">🎲 SPIEL DER JAHUDIS</div>
+<!-- ══ JOIN SCREEN ════════════════════════════════════════ -->
+<div class="screen active" id="screen-join">
+  <div style="text-align:center; margin-bottom:32px; margin-top:32px;">
+    <div style="font-size:3rem;">🎮</div>
+    <div class="screen-title">Spiel der Jahudis</div>
+    <div class="screen-subtitle">Dein persönlicher Satire-Lebensweg beginnt hier</div>
+  </div>
+  <div id="join-error" class="error-msg"></div>
+  <div class="field">
+    <label>Dein Name</label>
+    <input id="input-name" type="text" placeholder="z.B. Oliver" maxlength="20" />
+  </div>
+  <div class="field">
+    <label>Raum-Code (4 Buchstaben, vom TV)</label>
+    <input id="input-room" type="text" placeholder="ABCD" maxlength="4" style="text-transform:uppercase;" />
+  </div>
+  <button class="btn btn-primary" id="btn-join">🚪 Beitreten</button>
+</div>
 
-      <!-- QR Code Detected Badge -->
-      <div id="qr-connected-badge" class="qr-connected-badge" style="display: none;">
-        <span>✅</span>
-        <span>Mit Raum <strong id="qr-room-name">----</strong> verbunden</span>
-      </div>
+<!-- ══ CHARACTER SELECTION ════════════════════════════════ -->
+<div class="screen" id="screen-character">
+  <div class="screen-title">Charakter wählen</div>
+  <div class="screen-subtitle">Wer bist du in diesem Spiel?</div>
+  <div class="character-grid" id="character-grid"></div>
+  <button class="btn btn-primary" id="btn-ready" disabled>✅ Bereit!</button>
+</div>
 
-      <div class="input-group" id="group-room-code">
-        <label>4-Stelliger Raum-Code</label>
-        <input type="text" id="input-room-code" class="input-field room-code" maxlength="4" placeholder="ABCD" autocomplete="off" autocorrect="off" autocapitalize="characters">
-      </div>
+<!-- ══ LOBBY ════════════════════════════════════════════ -->
+<div class="screen" id="screen-lobby">
+  <div class="screen-title">🎲 Lobby</div>
+  <div class="screen-subtitle">Warte auf den Host...</div>
+  <div id="career-reveal" class="career-reveal" style="display:none;">
+    <span class="career-icon" id="lobby-career-icon"></span>
+    <div class="career-name" id="lobby-career-name"></div>
+    <div class="career-salary" id="lobby-career-salary"></div>
+    <div style="font-size:12px; color:#94a3b8; margin-top:8px;" id="lobby-career-desc"></div>
+  </div>
+  <div id="lobby-players-list"></div>
+  <div style="text-align:center; color:#94a3b8; margin-top:20px; font-size:14px;">⏳ Warte auf Spielstart...</div>
+</div>
 
-      <div class="input-group">
-        <label>Dein Spielername</label>
-        <input type="text" id="input-player-name" class="input-field" placeholder="z. B. Can, Alex, Boss..." maxlength="14" autofocus>
-      </div>
-
-      <div class="input-group">
-        <label>Wähle deinen Jahudi-Charakter</label>
-        <div class="character-list" id="character-list">
-          <!-- Dynamic Character Cards -->
-        </div>
-      </div>
-
-      <button id="btn-join-game" class="btn-join">BEITRETEN 🚀</button>
+<!-- ══ GAME SCREEN ═══════════════════════════════════════ -->
+<div class="screen" id="screen-game">
+  <div id="mini-header">
+    <div id="player-avatar-mini" style="background: rgba(255,255,255,0.1);">🎮</div>
+    <div>
+      <div id="player-name-display">Spieler</div>
+      <div id="player-character-display">Lade...</div>
     </div>
   </div>
-
-  <!-- SCREEN 2: IN-GAME CONTROLLER -->
-  <div id="game-screen" class="screen">
-    <!-- Player Stats Bar -->
-    <div class="player-bar">
-      <div class="player-info-mini">
-        <span id="player-avatar-mini" style="font-size: 28px;">💼</span>
-        <div>
-          <div id="player-name-display" style="font-weight: 800; font-size: 16px;">Spieler</div>
-          <div id="player-character-display" style="font-size: 11px; color: var(--accent-gold);">Business Jahudi</div>
-        </div>
-      </div>
-      <div class="player-stats-mini">
-        <span id="player-money-display" style="color: #22c55e;">50k €</span>
-        <span id="player-happiness-display" style="color: #ec4899;">20 ❤️</span>
-      </div>
-    </div>
-
-    <!-- Active Action Zone -->
-    <div class="turn-action-container">
-      <!-- State A: It is YOUR turn -->
-      <div id="my-turn-box" style="display: none;">
-        <button id="btn-spin" class="btn-spin-wheel">
-          <span style="font-size: 40px;">🎲</span>
-          <span>RAD DREHEN!</span>
-        </button>
-        <p style="margin-top: 16px; font-weight: 700; color: var(--accent-gold);">Tippe auf das Rad, um zu ziehen!</p>
-      </div>
-
-      <!-- State B: Waiting for other player -->
-      <div id="waiting-turn-box" class="waiting-box">
-        <div class="waiting-spinner">⏳</div>
-        <div id="waiting-status-text" style="font-size: 20px; font-weight: 800;">Warte auf Spielstart...</div>
-        <p style="font-size: 14px; text-align: center; max-width: 280px;">Benutze das Soundboard unten, um das Spiel auf dem TV zu kommentieren!</p>
-      </div>
-    </div>
-
-    <!-- STICKY BOTTOM SOUNDBOARD -->
-    <div class="soundboard-bar">
-      <div class="soundboard-title">🔊 Live Soundboard (TV Reaktionen)</div>
-      <div class="sound-buttons">
-        <button class="btn-sound" data-sound="honk">
-          <span class="btn-sound-icon">🚗</span>
-          <span class="btn-sound-label">Hupe</span>
-        </button>
-        <button class="btn-sound" data-sound="kaching">
-          <span class="btn-sound-icon">💸</span>
-          <span class="btn-sound-label">Kasse</span>
-        </button>
-        <button class="btn-sound" data-sound="laugh">
-          <span class="btn-sound-icon">😂</span>
-          <span class="btn-sound-label">Lachen</span>
-        </button>
-        <button class="btn-sound" data-sound="cheer">
-          <span class="btn-sound-icon">👏</span>
-          <span class="btn-sound-label">Jubel</span>
-        </button>
-        <button class="btn-sound" data-sound="fail">
-          <span class="btn-sound-icon">🎺</span>
-          <span class="btn-sound-label">Fail</span>
-        </button>
-      </div>
-    </div>
+  <div class="stats-grid">
+    <div class="stat-box"><div class="stat-label">💰 Geld</div><div class="stat-value stat-money" id="stat-money">0</div></div>
+    <div class="stat-box"><div class="stat-label">📈 Gehalt/Zahltag</div><div class="stat-value stat-salary" id="stat-salary">0</div></div>
+    <div class="stat-box"><div class="stat-label">❤️ Glück</div><div class="stat-value stat-happiness" id="stat-happiness">0</div></div>
+    <div class="stat-box"><div class="stat-label">🧠 Wissen</div><div class="stat-value stat-knowledge" id="stat-knowledge">0</div></div>
   </div>
+  <div class="assets-row" id="assets-row"></div>
+  <div class="turn-indicator" id="turn-indicator">Warte auf deinen Zug...</div>
+  <button class="btn-spin" id="btn-spin" disabled>🎰<br>SPIN</button>
+  <div style="text-align:center; font-size:12px; color:#475569; margin-top:8px;">Warte auf deinen Zug</div>
+</div>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/audio.js"></script>
-  <script src="/js/controller.js"></script>
+<!-- ══ DECISION SCREEN ════════════════════════════════════ -->
+<div class="screen" id="screen-decision">
+  <div class="decision-header">
+    <div class="dec-icon" id="dec-icon">⚖️</div>
+    <h2 id="dec-title">Entscheidung</h2>
+    <p id="dec-desc">Beschreibung...</p>
+  </div>
+  <div id="dec-options"></div>
+</div>
+
+<!-- ══ PATH CHOICE SCREEN ════════════════════════════════ -->
+<div class="screen" id="screen-path-choice">
+  <div class="screen-title">🔀 Wegwahl!</div>
+  <div class="screen-subtitle">Du stehst an einer Kreuzung – wohin geht dein Weg?</div>
+  <div id="path-options" style="display:flex; flex-direction:column; gap:16px; margin-top:20px;"></div>
+</div>
+
+<!-- ══ RETIREMENT SCREEN ══════════════════════════════════ -->
+<div class="screen" id="screen-retirement">
+  <div class="retirement-card">
+    <span class="retire-icon">🏝️</span>
+    <div style="font-size:1.4rem; font-weight:900; color:var(--gold);">Du bist im Ruhestand!</div>
+    <div style="font-size:14px; color:#94a3b8; margin: 8px 0;">Dein Leben ist abgerechnet</div>
+    <div class="final-score" id="retire-final-score">0 Punkte</div>
+    <div id="retire-breakdown" style="font-size:13px; color:#94a3b8; margin-top:12px; line-height:1.8;"></div>
+  </div>
+  <div style="text-align:center; margin-top:20px; color:#64748b; font-size:14px;">Warte auf das Ende aller Spieler...</div>
+</div>
+
+<!-- ══ ENDGAME SCREEN ═════════════════════════════════════ -->
+<div class="screen" id="screen-endgame">
+  <div class="screen-title" style="color:var(--gold);">🏆 Spiel vorbei!</div>
+  <div id="endgame-list" style="margin-top:20px;"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/controller.js"></script>
 </body>
 </html>

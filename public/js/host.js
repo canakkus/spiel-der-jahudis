@@ -1,180 +1,199 @@
-// Host Logic for TV Screen with 3D Dubai Board
+// ============================================================
+// SPIEL DER JAHUDIS – HOST (TV) Script
+// Full Game of Life mechanics wired up
+// ============================================================
+
 const socket = io();
-
-let currentRoomCode = '';
+let currentRoomCode = null;
 let currentPlayers = [];
-let activePlayer = null;
 let dubaiBoard3D = null;
+let activePlayer = null;
+let pendingBranchResolve = null; // resolves branch Promise with chosen nodeId
 
-// DOM Elements
-const lobbyView = document.getElementById('lobby-view');
-const gameView = document.getElementById('game-view');
-const lobbyRoomCode = document.getElementById('lobby-room-code');
-const headerRoomCode = document.getElementById('header-room-code');
-const roomBadge = document.getElementById('room-badge');
-const joinUrlText = document.getElementById('join-url-text');
-const qrImage = document.getElementById('qr-image');
-const lobbyPlayersGrid = document.getElementById('lobby-players-grid');
-const playerCount = document.getElementById('player-count');
-const btnStartGame = document.getElementById('btn-start-game');
-
-// Game View Elements
-const turnText = document.getElementById('turn-text');
-const leaderboardBar = document.getElementById('leaderboard-bar');
-const wheelOverlay = document.getElementById('wheel-overlay');
+// ── DOM refs ─────────────────────────────────────────────────
+const lobbyScreen     = document.getElementById('lobby-screen');
+const gameScreen      = document.getElementById('game-screen');
+const qrCodeImg       = document.getElementById('qr-code-img');
+const roomCodeDisplay = document.getElementById('room-code-display');
+const joinUrlDisplay  = document.getElementById('join-url-display');
+const lobbyPlayersGrid= document.getElementById('lobby-players-grid');
+const wheelOverlay    = document.getElementById('wheel-overlay');
+const wheelCanvas     = document.getElementById('wheel-canvas');
 const wheelPlayerName = document.getElementById('wheel-player-name');
-const wheelCanvas = document.getElementById('wheel-canvas');
-const actionOverlay = document.getElementById('action-overlay');
-const cardIcon = document.getElementById('card-icon');
-const cardTitle = document.getElementById('card-title');
-const cardDesc = document.getElementById('card-desc');
-const cardRewards = document.getElementById('card-rewards');
-const reactionsContainer = document.getElementById('reactions-container');
+const actionOverlay   = document.getElementById('action-overlay');
+const cardIcon        = document.getElementById('card-icon');
+const cardTitle       = document.getElementById('card-title');
+const cardDesc        = document.getElementById('card-desc');
+const cardRewards     = document.getElementById('card-rewards');
+const paydayOverlay   = document.getElementById('payday-overlay');
+const paydayAmount    = document.getElementById('payday-amount');
+const branchOverlay   = document.getElementById('branch-overlay');
+const branchPlayerName= document.getElementById('branch-player-name');
+const decisionOverlayTv = document.getElementById('decision-overlay-tv');
+const decisionTitleTv = document.getElementById('decision-title-tv');
+const endgameOverlay  = document.getElementById('endgame-overlay');
+const endgameRankings = document.getElementById('endgame-rankings');
+const turnText        = document.getElementById('turn-text');
+const leaderboardEl   = document.getElementById('score-cards');
 
-// 1. Initialize Host Room with browser location
-socket.emit('host_create_room', {
-  host: window.location.host,
-  protocol: window.location.protocol
-});
+// ── Wheel ─────────────────────────────────────────────────────
+const WHEEL_SECTORS = [
+  {num:1,color:'#ec4899'},{num:2,color:'#f59e0b'},{num:3,color:'#22c55e'},
+  {num:4,color:'#3b82f6'},{num:5,color:'#a855f7'},{num:6,color:'#ec4899'},
+  {num:7,color:'#f59e0b'},{num:8,color:'#22c55e'},{num:9,color:'#3b82f6'},
+  {num:10,color:'#a855f7'}
+];
+let wheelAngle = 0;
 
-socket.on('room_created', (data) => {
-  currentRoomCode = data.roomCode;
-  lobbyRoomCode.textContent = data.roomCode;
-  headerRoomCode.textContent = data.roomCode;
-  roomBadge.style.display = 'flex';
-  joinUrlText.textContent = data.joinUrl;
-  qrImage.src = data.qrCodeDataUrl;
-  console.log('Room created with 3D Dubai Board:', data);
+function drawWheel(angle) {
+  if (!wheelCanvas) return;
+  const ctx = wheelCanvas.getContext('2d');
+  const cx = wheelCanvas.width / 2, cy = wheelCanvas.height / 2, r = cx - 10;
+  ctx.clearRect(0, 0, wheelCanvas.width, wheelCanvas.height);
+  const arc = (2 * Math.PI) / WHEEL_SECTORS.length;
+  WHEEL_SECTORS.forEach((sec, i) => {
+    const start = i * arc + angle;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, start, start + arc);
+    ctx.closePath();
+    ctx.fillStyle = sec.color;
+    ctx.fill();
+    ctx.strokeStyle = '#0b1329';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(start + arc / 2);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(sec.num, r * 0.65, 8);
+    ctx.restore();
+  });
+  // Arrow
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.fillStyle = '#fff';
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 4;
+  ctx.beginPath();
+  ctx.moveTo(-8, -r + 5);
+  ctx.lineTo(8, -r + 5);
+  ctx.lineTo(0, -r - 20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  // Center circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+  ctx.fillStyle = '#0b1329';
+  ctx.fill();
+}
+
+// ── Room creation ─────────────────────────────────────────────
+socket.emit('host_create_room', { host: window.location.host, protocol: window.location.protocol });
+
+socket.on('room_created', ({ roomCode, joinUrl, qrCodeDataUrl }) => {
+  currentRoomCode = roomCode;
+  roomCodeDisplay.textContent = roomCode;
+  joinUrlDisplay.textContent = joinUrl;
+  if (qrCodeImg) qrCodeImg.src = qrCodeDataUrl;
+  drawWheel(0);
 });
 
 socket.on('qr_updated', ({ joinUrl, qrCodeDataUrl }) => {
-  joinUrlText.textContent = joinUrl;
-  qrImage.src = qrCodeDataUrl;
+  joinUrlDisplay.textContent = joinUrl;
+  if (qrCodeImg) qrCodeImg.src = qrCodeDataUrl;
 });
 
-// 2. Lobby Updates
+// Custom URL input
+const customUrlInput = document.getElementById('custom-url-input');
+const customUrlBtn = document.getElementById('custom-url-btn');
+if (customUrlBtn) {
+  customUrlBtn.onclick = () => {
+    const url = (customUrlInput.value || '').trim();
+    if (url) socket.emit('update_host_url', { roomCode: currentRoomCode, customUrl: url });
+  };
+}
+
+// ── Lobby ──────────────────────────────────────────────────────
 socket.on('lobby_updated', ({ players }) => {
   currentPlayers = players;
-  playerCount.textContent = `(${players.length} Spieler)`;
-  btnStartGame.disabled = players.length === 0;
+  renderLobbyPlayers();
+});
 
+function renderLobbyPlayers() {
+  if (!lobbyPlayersGrid) return;
   lobbyPlayersGrid.innerHTML = '';
-  players.forEach(p => {
+  currentPlayers.forEach(p => {
     const card = document.createElement('div');
-    card.className = 'player-lobby-card';
+    card.className = 'player-card';
+    card.style.borderColor = p.character.color;
     card.innerHTML = `
-      <div class="player-avatar" style="border-color: ${p.character.color}; background: ${p.character.color}22">
-        ${p.character.icon}
-      </div>
+      <div class="player-avatar" style="background:${p.character.color}20; color:${p.character.color}; font-size:2.5rem;">${p.character.icon}</div>
       <div>
         <div class="player-name">${p.name}</div>
-        <div class="player-outfit">${p.character.name} • ${p.character.car}</div>
+        <div class="player-outfit" style="color:${p.character.color}; font-size:12px;">
+          ${p.career ? p.career.icon + ' ' + p.career.name : p.character.name}
+        </div>
+        <div style="font-size:11px; color:#94a3b8; margin-top:4px;">
+          Gehalt: ${(p.salary || 0).toLocaleString()} €/Zahltag
+        </div>
+        <div style="margin-top:6px; font-size:13px;">${p.ready ? '✅ Bereit' : '⏳ Warten...'}</div>
       </div>
     `;
     lobbyPlayersGrid.appendChild(card);
   });
-});
+}
 
-// 3. Start Game
-btnStartGame.addEventListener('click', () => {
-  window.soundEngine.init();
-  window.soundEngine.play('cheer');
-  socket.emit('start_game', { roomCode: currentRoomCode });
-});
+// ── Start game ─────────────────────────────────────────────────
+const startBtn = document.getElementById('start-game-btn');
+if (startBtn) {
+  startBtn.onclick = () => {
+    if (currentPlayers.length > 0) socket.emit('start_game', { roomCode: currentRoomCode });
+  };
+}
 
 socket.on('game_started', ({ players, currentTurnPlayer }) => {
   currentPlayers = players;
-  activePlayer = currentTurnPlayer;
+  lobbyScreen.style.display = 'none';
+  gameScreen.style.display = 'flex';
 
-  lobbyView.classList.remove('active');
-  gameView.classList.add('active');
-
-  // Initialize 3D Dubai Board
-  if (!dubaiBoard3D) {
-    dubaiBoard3D = new DubaiBoard3D('board-3d-container');
-    dubaiBoard3D.init();
-  }
-
+  dubaiBoard3D = new DubaiBoard3D('board-canvas');
+  dubaiBoard3D.init();
   dubaiBoard3D.updatePlayers(currentPlayers);
+
+  // Wire up branch callback
+  dubaiBoard3D.onReachBranch = (player, nodeId, remainingSteps, nextIds) => {
+    return new Promise(resolve => {
+      pendingBranchResolve = resolve;
+      // Show branch overlay on TV
+      branchPlayerName.textContent = player.name;
+      branchOverlay.classList.add('active');
+    });
+  };
+
   updateLeaderboard();
-  updateTurnDisplay();
+  setTurnText(currentTurnPlayer);
 });
 
-function updateTurnDisplay() {
-  if (!activePlayer) return;
-  turnText.innerHTML = `🎲 <span class="turn-player-highlight">${activePlayer.name}</span> ist am Zug!`;
+// ── Turn / Spin ────────────────────────────────────────────────
+function setTurnText(player) {
+  if (!player || !turnText) return;
+  const isTv = true; // host always shows instruction
+  turnText.innerHTML = `🎮 <span style="color:${player.character.color}; font-weight:900;">${player.name}</span> ist dran — Handy: SPIN drücken!`;
 }
 
-function updateLeaderboard() {
-  leaderboardBar.innerHTML = '';
-  currentPlayers.forEach(p => {
-    const isCurrent = activePlayer && activePlayer.socketId === p.socketId;
-    const card = document.createElement('div');
-    card.className = `player-score-card ${isCurrent ? 'active-turn' : ''}`;
-    card.innerHTML = `
-      <div class="score-header">
-        <span>${p.character.icon} ${p.name}</span>
-        <span style="font-size: 11px; color: ${p.character.color}; font-weight: 700;">${p.character.name}</span>
-      </div>
-      <div class="score-stats">
-        <div class="stat-item money">💰 ${(p.money || 0).toLocaleString()} €</div>
-        <div class="stat-item knowledge">🧠 ${p.knowledge || 0}</div>
-        <div class="stat-item happiness">❤️ ${p.happiness || 0}</div>
-      </div>
-    `;
-    leaderboardBar.appendChild(card);
-  });
-}
+// Spacebar = quick spin for testing
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    const cp = currentPlayers.find(p => p.isTurn);
+    if (cp) socket.emit('player_spin_wheel', { roomCode: currentRoomCode });
+  }
+});
 
-// 4. Drehrad Spinning Animation
-const WHEEL_SECTORS = [
-  { num: 1, color: '#ef4444' },
-  { num: 2, color: '#f97316' },
-  { num: 3, color: '#f59e0b' },
-  { num: 4, color: '#84cc16' },
-  { num: 5, color: '#10b981' },
-  { num: 6, color: '#06b6d4' },
-  { num: 7, color: '#3b82f6' },
-  { num: 8, color: '#6366f1' },
-  { num: 9, color: '#8b5cf6' },
-  { num: 10, color: '#ec4899' }
-];
-
-function drawWheel(angleOffset = 0) {
-  const ctx = wheelCanvas.getContext('2d');
-  const cx = wheelCanvas.width / 2;
-  const cy = wheelCanvas.height / 2;
-  const radius = cx - 10;
-  const arc = (2 * Math.PI) / WHEEL_SECTORS.length;
-
-  ctx.clearRect(0, 0, wheelCanvas.width, wheelCanvas.height);
-
-  WHEEL_SECTORS.forEach((sec, i) => {
-    const angle = angleOffset + i * arc;
-    ctx.beginPath();
-    ctx.fillStyle = sec.color;
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, radius, angle, angle + arc);
-    ctx.lineTo(cx, cy);
-    ctx.fill();
-    ctx.stroke();
-
-    // Number text
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(angle + arc / 2);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 26px Plus Jakarta Sans, sans-serif';
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 4;
-    ctx.fillText(sec.num, radius - 20, 10);
-    ctx.restore();
-  });
-}
-
-drawWheel();
-
+// ── Wheel spin ─────────────────────────────────────────────────
 socket.on('wheel_spun', ({ player, spinValue }) => {
   activePlayer = player;
   wheelPlayerName.textContent = `${player.name} dreht das Rad...`;
@@ -182,142 +201,225 @@ socket.on('wheel_spun', ({ player, spinValue }) => {
 
   const sectorIndex = WHEEL_SECTORS.findIndex(s => s.num === spinValue);
   const arc = (2 * Math.PI) / WHEEL_SECTORS.length;
-  const targetSectorAngle = (3 * Math.PI / 2) - (sectorIndex * arc + arc / 2);
-  const totalSpins = 4 * 2 * Math.PI;
-  const finalAngle = totalSpins + targetSectorAngle;
-
+  const targetAngle = (3 * Math.PI / 2) - (sectorIndex * arc + arc / 2);
+  const finalAngle = 4 * 2 * Math.PI + targetAngle;
   const duration = 2800;
   const startTime = performance.now();
-  let lastTickAngle = 0;
+  let lastTick = 0;
 
-  function animate(now) {
+  function animateWheel(now) {
     const elapsed = now - startTime;
     const progress = Math.min(elapsed / duration, 1);
     const ease = 1 - Math.pow(1 - progress, 3);
-    const currentAngle = ease * finalAngle;
-
-    drawWheel(currentAngle);
-
-    if (Math.abs(currentAngle - lastTickAngle) >= arc) {
-      window.soundEngine.play('wheel_tick');
-      lastTickAngle = currentAngle;
+    const current = ease * finalAngle;
+    drawWheel(current);
+    if (Math.abs(current - lastTick) >= arc) {
+      window.soundEngine && window.soundEngine.play('wheel_tick');
+      lastTick = current;
     }
-
     if (progress < 1) {
-      requestAnimationFrame(animate);
+      requestAnimationFrame(animateWheel);
     } else {
       setTimeout(() => {
         wheelOverlay.classList.remove('active');
-        execute3DPlayerMove(player, spinValue);
+        execute3DMove(player, spinValue);
       }, 700);
     }
   }
-
-  requestAnimationFrame(animate);
+  requestAnimationFrame(animateWheel);
 });
 
-// 5. 3D Step-by-step Movement & Camera Follow
-async function execute3DPlayerMove(player, steps) {
-  if (dubaiBoard3D) {
-    await dubaiBoard3D.animateCarMove(player, steps, () => {
-      window.soundEngine.play('move_step');
-    });
-  }
+// ── Movement ───────────────────────────────────────────────────
+async function execute3DMove(player, steps) {
+  if (!dubaiBoard3D) return;
 
-  const finalNode = BOARD_NODES.find(n => n.id === player.position) || BOARD_NODES[0];
-  handleTileLanding(player, finalNode);
+  // Sync local player with latest from currentPlayers
+  const freshPlayer = currentPlayers.find(p => p.socketId === player.socketId) || player;
+
+  await dubaiBoard3D.animateCarMove(freshPlayer, steps, (p, nodeId, type) => {
+    if (type === 'payday') {
+      // Tell server player passed over a payday tile
+      socket.emit('player_passed_payday', { roomCode: currentRoomCode });
+      showPaydayFlash();
+    }
+    // step & stop handled after movement completes
+  });
+
+  // Movement done – process final tile
+  const finalNodeId = freshPlayer.position;
+  const finalNode = BOARD_NODES.find(n => n.id === finalNodeId) || BOARD_NODES[0];
+  handleTileLanding(freshPlayer, finalNode);
 }
 
-// 6. Handle Tile Landing & Dubai Action Cards
+function showPaydayFlash() {
+  paydayOverlay.classList.add('active');
+  setTimeout(() => paydayOverlay.classList.remove('active'), 1600);
+  window.soundEngine && window.soundEngine.play('kaching');
+}
+
 function handleTileLanding(player, node) {
-  let tileEffect = { ...(node.effect || {}) };
-
-  if (node.type === 'action') {
-    const randomCard = ACTION_CARDS[Math.floor(Math.random() * ACTION_CARDS.length)];
-    window.soundEngine.play('card_flip');
-
-    cardIcon.textContent = randomCard.icon;
-    cardTitle.textContent = randomCard.headline;
-    cardDesc.textContent = randomCard.desc;
-
-    let rewardsHtml = '';
-    if (randomCard.effect.money) {
-      rewardsHtml += `<span style="color: #22c55e;">${randomCard.effect.money > 0 ? '+' : ''}${randomCard.effect.money.toLocaleString()} €</span> `;
-    }
-    if (randomCard.effect.knowledge) {
-      rewardsHtml += `<span style="color: #3b82f6;">+${randomCard.effect.knowledge} 🧠</span> `;
-    }
-    if (randomCard.effect.happiness) {
-      rewardsHtml += `<span style="color: #ec4899;">+${randomCard.effect.happiness} ❤️</span> `;
-    }
-    cardRewards.innerHTML = rewardsHtml;
-
-    actionOverlay.classList.add('active');
-    tileEffect = { ...randomCard.effect };
-
-    setTimeout(() => {
-      actionOverlay.classList.remove('active');
-      finalizeTurn(player, node.id, tileEffect);
-    }, 3500);
-
-  } else if (node.type === 'payday') {
-    window.soundEngine.play('kaching');
-    finalizeTurn(player, node.id, tileEffect);
-  } else if (node.type === 'finish') {
-    window.soundEngine.play('cheer');
-    finalizeTurn(player, node.id, tileEffect);
-  } else {
-    finalizeTurn(player, node.id, tileEffect);
-  }
-}
-
-function finalizeTurn(player, targetNodeId, tileEffect) {
+  window.soundEngine && window.soundEngine.play('move_step');
   socket.emit('player_moved_to_tile', {
     roomCode: currentRoomCode,
     playerId: player.socketId,
-    targetNodeId,
-    tileEffect
+    targetNodeId: node.id,
+    nodeType: node.type,
+    nodeDecisionId: node.decisionId || null
   });
-
-  setTimeout(() => {
-    socket.emit('next_turn', { roomCode: currentRoomCode });
-  }, 1200);
 }
 
-socket.on('player_stats_updated', ({ players }) => {
+// ── Branch choice resolved by path-choice-overlay or controller ──
+socket.on('path_chosen', ({ playerId, chosenNodeId }) => {
+  branchOverlay.classList.remove('active');
+  if (pendingBranchResolve) {
+    pendingBranchResolve(chosenNodeId);
+    pendingBranchResolve = null;
+  }
+});
+
+// ── Decision events ─────────────────────────────────────────────
+socket.on('decision_required', ({ player, decisionData }) => {
+  if (dubaiBoard3D) dubaiBoard3D.updatePlayers(currentPlayers);
+  if (decisionTitleTv) decisionTitleTv.textContent = `⏳ ${player.name} entscheidet: ${decisionData.title}`;
+  if (decisionOverlayTv) decisionOverlayTv.classList.add('active');
+  if (turnText) turnText.innerHTML = `⏳ <span style="color:${player.character.color}; font-weight:900;">${player.name}</span> muss eine Entscheidung treffen...`;
+});
+
+socket.on('decision_resolved', ({ players, updatedPlayer, option, decisionData }) => {
   currentPlayers = players;
   updateLeaderboard();
   if (dubaiBoard3D) dubaiBoard3D.updatePlayers(currentPlayers);
+  if (decisionOverlayTv) decisionOverlayTv.classList.remove('active');
+
+  showCard('⚖️', `${updatedPlayer.name}: ${option.label}`, decisionData.title, buildEffectHtml(option.effects));
 });
 
+// ── Stats updates ───────────────────────────────────────────────
+socket.on('player_stats_updated', ({ players, updatedPlayer, event, paydayAmount, careerAdvancement, newSalary }) => {
+  currentPlayers = players;
+  updateLeaderboard();
+  if (dubaiBoard3D) dubaiBoard3D.updatePlayers(currentPlayers);
+
+  if (careerAdvancement && updatedPlayer) {
+    showCard('📈', `${updatedPlayer.name} befördert!`, `Neues Gehalt: ${(newSalary || 0).toLocaleString()} €/Zahltag`, '');
+  } else if (event) {
+    const icon = event.type === 'positive' ? '🚀' : event.type === 'negative' ? '📉' : '🎲';
+    const amountHtml = event.moneyEffect ? `<span style="color:${event.moneyEffect>0?'#22c55e':'#ef4444'}">${event.moneyEffect>0?'+':''}${event.moneyEffect.toLocaleString()} €</span>` : '';
+    showCard(icon, event.title, event.description, amountHtml);
+  } else if (paydayAmount > 0) {
+    showCard('💰', 'ZAHLTAG!', 'Gehaltseingang!', `<span style="color:#22c55e">+${paydayAmount.toLocaleString()} €</span>`);
+  }
+});
+
+socket.on('payday_collected', ({ player, amount }) => {
+  const p = currentPlayers.find(p2 => p2.socketId === player.socketId);
+  if (p) { p.money = player.money; updateLeaderboard(); }
+  showPaydayFlash();
+  paydayAmount.textContent = `+${amount.toLocaleString()} €`;
+});
+
+// ── Retirement & Game end ───────────────────────────────────────
+socket.on('player_retired', ({ player, finalScore }) => {
+  const p = currentPlayers.find(p2 => p2.socketId === player.socketId);
+  if (p) { p.isRetired = true; p.finalScore = finalScore; }
+  updateLeaderboard();
+  if (dubaiBoard3D) {
+    const car = dubaiBoard3D.cars[player.socketId];
+    if (car) {
+      dubaiBoard3D.spawnConfetti(car.position);
+    }
+  }
+  showCard('🏝️', `${player.name} im Ruhestand!`, 'Endabrechnung läuft...', `<span style="color:#f59e0b">Score: ${finalScore.toLocaleString()}</span>`);
+  window.soundEngine && window.soundEngine.play('cheer');
+});
+
+socket.on('game_finished', ({ rankings, winner }) => {
+  endgameOverlay.classList.add('active');
+  let html = `<div style="text-align:center; margin-bottom:20px;"><div style="font-size:48px;">🏆</div><div style="font-size:28px; color:#f59e0b; font-weight:900;">GEWINNER: ${winner.name}</div></div>`;
+  rankings.forEach((p, i) => {
+    const medals = ['🥇','🥈','🥉','4️⃣'];
+    html += `<div class="endgame-row" style="padding:12px; margin:8px 0; background:rgba(255,255,255,0.05); border-radius:12px; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:24px;">${medals[i] || i+1}</span>
+      <span style="font-weight:700; color:${p.character.color};">${p.character.icon} ${p.name}</span>
+      <span style="color:#22c55e; font-weight:700;">${(p.finalScore||0).toLocaleString()} Punkte</span>
+    </div>`;
+  });
+  endgameRankings.innerHTML = html;
+  window.soundEngine && window.soundEngine.play('cheer');
+});
+
+// ── Turn changed ────────────────────────────────────────────────
 socket.on('turn_changed', ({ currentTurnPlayer, players }) => {
   currentPlayers = players;
-  activePlayer = currentTurnPlayer;
-  updateTurnDisplay();
   updateLeaderboard();
+  setTurnText(currentTurnPlayer);
+  if (dubaiBoard3D) dubaiBoard3D.updatePlayers(currentPlayers);
+  window.soundEngine && window.soundEngine.play('wheel_tick');
 });
 
-// 7. Soundboard Reaction Receiver (Spawns 3D & Screen Effects)
-const REACTION_EMOJIS = {
-  honk: '🚗💨 *HUP!*',
-  kaching: '💸 KACHING!',
-  laugh: '😂 HAHAHA!',
-  cheer: '🎉 JUBEL!',
-  fail: '🎺 FAIL!'
-};
+// ── Leaderboard ─────────────────────────────────────────────────
+function updateLeaderboard() {
+  if (!leaderboardEl) return;
+  leaderboardEl.innerHTML = '';
+  currentPlayers.forEach(p => {
+    const isCurrent = p.isTurn;
+    const card = document.createElement('div');
+    card.className = `player-score-card ${isCurrent ? 'active-turn' : ''} ${p.isRetired ? 'retired' : ''}`;
+    card.style.borderColor = p.character.color;
+    const assets = p.assets || {};
+    card.innerHTML = `
+      <div class="score-header">
+        <span>${p.career ? p.career.icon : p.character.icon} ${p.name}
+          ${assets.house ? '🏠' : ''}
+          ${assets.spouse ? '💍' : ''}
+          ${assets.children > 0 ? '👶'.repeat(Math.min(assets.children, 3)) : ''}
+          ${p.isRetired ? ' 🏝️' : ''}
+        </span>
+        <span style="font-size:11px; color:${p.character.color}; font-weight:700;">${p.career ? p.career.name : p.character.name}</span>
+      </div>
+      <div class="score-stats">
+        <div class="stat-item money">💰 ${(p.money||0).toLocaleString()} €</div>
+        <div class="stat-item">📈 ${(p.salary||0).toLocaleString()} €</div>
+        <div class="stat-item">❤️ ${p.happiness||0}</div>
+        <div class="stat-item">🧠 ${p.knowledge||0}</div>
+      </div>
+      ${p.isRetired ? `<div style="color:#f59e0b; font-size:12px; font-weight:700;">Score: ${(p.finalScore||0).toLocaleString()}</div>` : ''}
+    `;
+    leaderboardEl.appendChild(card);
+  });
+}
 
+// ── Soundboard ──────────────────────────────────────────────────
 socket.on('soundboard_reaction', ({ player, soundId }) => {
-  window.soundEngine.play(soundId);
-
-  const emoji = REACTION_EMOJIS[soundId] || '🎉';
-  const floater = document.createElement('div');
-  floater.className = 'floating-reaction';
-  floater.textContent = emoji;
-
-  // Random / Center Position with animation
-  floater.style.left = `${Math.random() * 50 + 25}%`;
-  floater.style.top = `${Math.random() * 40 + 30}%`;
-
-  reactionsContainer.appendChild(floater);
-  setTimeout(() => floater.remove(), 1800);
+  window.soundEngine && window.soundEngine.play(soundId);
 });
+
+// ── Action Card helper ───────────────────────────────────────────
+function showCard(icon, title, desc, rewardsHtml, autoDismissMs = 4000) {
+  cardIcon.textContent = icon;
+  cardTitle.textContent = title;
+  cardDesc.textContent = desc;
+  cardRewards.innerHTML = rewardsHtml || '';
+  actionOverlay.classList.add('active');
+  window.soundEngine && window.soundEngine.play('card_flip');
+  if (autoDismissMs > 0) {
+    setTimeout(() => {
+      actionOverlay.classList.remove('active');
+      socket.emit('next_turn', { roomCode: currentRoomCode });
+    }, autoDismissMs);
+  }
+}
+
+function buildEffectHtml(effects) {
+  if (!effects) return '';
+  let html = '';
+  if (effects.money) html += `<span style="color:${effects.money>0?'#22c55e':'#ef4444'}">${effects.money>0?'+':''}${effects.money.toLocaleString()} €</span> `;
+  if (effects.happiness) html += `<span style="color:#ec4899">${effects.happiness>0?'+':''}${effects.happiness} ❤️</span> `;
+  if (effects.knowledge) html += `<span style="color:#06b6d4">+${effects.knowledge} 🧠</span> `;
+  if (effects.salary) html += `<span style="color:#22c55e">Gehalt: ${effects.salary.toLocaleString()} €</span> `;
+  if (effects.house) html += `<span style="color:#a855f7">+🏠 ${effects.house}</span> `;
+  if (effects.vehicle) html += `<span style="color:#f59e0b">+🚗 ${effects.vehicle}</span> `;
+  if (effects.spouse) html += `<span style="color:#f43f5e">+💍 Heirat!</span> `;
+  if (effects.children) html += `<span style="color:#f43f5e">+👶 Kind!</span> `;
+  return html;
+}

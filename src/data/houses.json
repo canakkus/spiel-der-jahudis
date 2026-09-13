@@ -1,0 +1,7 @@
+[
+  { "id": "apartment", "name": "Kleines Apartment", "icon": "🏢", "price": 100000, "value": 100000, "happinessBonus": 20, "description": "Tinyhaus mitten in der Stadt. Kein Platz, aber zentral." },
+  { "id": "family_house", "name": "Familienhaus", "icon": "🏡", "price": 300000, "value": 300000, "happinessBonus": 50, "description": "Vorstadthaus mit Garten. Barbecue-Pflicht." },
+  { "id": "villa", "name": "Luxusvilla", "icon": "🏰", "price": 700000, "value": 700000, "happinessBonus": 100, "description": "Pool, Tennisplatz, Hausmeister. Arriving." },
+  { "id": "dubai_penthouse", "name": "Dubai Penthouse", "icon": "🌆", "price": 1500000, "value": 1500000, "happinessBonus": 150, "description": "87. Etage, Burj-Blick, Gold-Wasserhähne. Natürlich." },
+  { "id": "epstein_island", "name": "Privatinsel", "icon": "🏝️", "price": 5000000, "value": 5000000, "happinessBonus": 250, "description": "Eigene Insel. Kein Kommentar zu den Mitbewohnern." }
+]
