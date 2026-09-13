@@ -435,11 +435,11 @@ class DubaiBoard3D {
       // BRANCH: multiple next nodes → ask player to choose or use pre-selected decision path
       if (currentNode.next.length > 1) {
         let chosenNextId = null;
+        stepsLeft = steps - s - 1;
         if (player._chosenPath !== undefined && currentNode.next[player._chosenPath] !== undefined) {
           chosenNextId = currentNode.next[player._chosenPath];
           delete player._chosenPath;
         } else if (this.onReachBranch) {
-          stepsLeft = steps - s - 1;
           car.isMoving = false;
           chosenNextId = await this.onReachBranch(player, currentNodeId, stepsLeft, currentNode.next);
         }
@@ -452,7 +452,8 @@ class DubaiBoard3D {
           await this.moveCarTo(car, currentNodeId);
           // Now continue movement from here
           if (stepsLeft > 0) {
-            const subResult = await this.animateCarMove({ ...player, position: currentNodeId }, stepsLeft, stepCallback);
+            const subResult = await this.animateCarMove(player, stepsLeft, stepCallback);
+            player.position = subResult.finalNodeId;
             car.isMoving = false;
             this.resetCamera();
             return subResult;

@@ -218,8 +218,11 @@ socket.on('turn_changed', ({ currentTurnPlayer, players }) => {
   const me = players.find(p => p.socketId === socket.id);
   if (me) { myPlayer = me; updateStats(); }
   updateTurnIndicator(currentTurnPlayer);
-  if (screens['game'].classList.contains('active')) {
-    // stay on game screen
+  if (screens['decision'] && screens['decision'].classList.contains('active')) {
+    showScreen('game');
+  }
+  if (screens['path-choice'] && screens['path-choice'].classList.contains('active')) {
+    showScreen('game');
   }
 });
 
@@ -256,7 +259,8 @@ socket.on('decision_required', ({ player, decisionData }) => {
     btn.textContent = opt.label;
     btn.addEventListener('click', () => {
       showScreen('game');
-      socket.emit('submit_decision', { roomCode: currentRoomCode, optionId: opt.id });
+      const code = (currentRoomCode || '').toUpperCase().trim();
+      socket.emit('submit_decision', { roomCode: code, optionId: opt.id });
     });
     decOptions.appendChild(btn);
   });
@@ -265,7 +269,9 @@ socket.on('decision_required', ({ player, decisionData }) => {
 socket.on('decision_resolved', ({ players }) => {
   const me = players.find(p => p.socketId === socket.id);
   if (me) { myPlayer = me; updateStats(); }
-  if (!screens['game'].classList.contains('active')) showScreen('game');
+  if (screens['decision'] && screens['decision'].classList.contains('active')) {
+    showScreen('game');
+  }
 });
 
 // ── PATH CHOICE ───────────────────────────────────────────────

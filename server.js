@@ -343,7 +343,7 @@ io.on('connection', (socket) => {
 
     if (result.waitingForDecision) {
       io.to(roomCode).emit('decision_required', { player, decisionData: result.decision });
-      io.to(roomCode).emit('player_stats_updated', { players: room.players, updatedPlayer: player });
+      io.to(roomCode).emit('player_stats_updated', { players: room.players, updatedPlayer: player, isDecision: true });
       return;
     }
 
@@ -372,46 +372,69 @@ io.on('connection', (socket) => {
   });
 
   socket.on('submit_decision', ({ roomCode, optionId }) => {
-    const room = rooms[roomCode];
-    if (!room || room.state !== 'WAITING_FOR_DECISION') return;
-    if (!room.pendingDecision || room.pendingDecision.playerId !== socket.id) return;
+    const code = (roomCode || socket.roomCode || '').toUpperCase().trim();
+    const room = rooms[code] || rooms[roomCode];
+    if (!room) {
+      console.warn(`[DECISION] Room not found: ${code}`);
+      return;
+    }
+    if (room.state !== 'WAITING_FOR_DECISION') {
+      console.warn(`[DECISION] Ignored - state is ${room.state}, expected WAITING_FOR_DECISION`);
+      return;
+    }
+    if (!room.pendingDecision || room.pendingDecision.playerId !== socket.id) {
+      console.warn(`[DECISION] Ignored - pendingDecision mismatch`);
+      return;
+    }
 
     const decisionData = decisions.find(d => d.id === room.pendingDecision.decisionId);
-    if (!decisionData) return;
+    if (!decisionData) {
+      console.warn(`[DECISION] Decision data not found for: ${room.pendingDecision.decisionId}`);
+      return;
+    }
 
     const result = room.resolveDecision(socket.id, decisionData, optionId);
-    if (!result) return;
+    if (!result) {
+      console.warn(`[DECISION] Failed to resolve decision: ${optionId}`);
+      return;
+    }
 
     const option = result.option;
-    io.to(roomCode).emit('decision_resolved', {
+    io.to(code).emit('decision_resolved', {
       players: room.players,
       updatedPlayer: result.player,
       option,
       decisionData
     });
 
-    console.log(`[DECISION] ${result.player.name}: ${optionId}`);
+    console.log(`[DECISION] ${result.player.name}: ${optionId} (${option.label})`);
 
     if (option.effects && option.effects.earlyRetire) {
-      io.to(roomCode).emit('player_retired', { player: result.player, finalScore: result.player.finalScore });
+      io.to(code).emit('player_retired', { player: result.player, finalScore: result.player.finalScore });
       if (room.allRetired()) {
         const rankings = room.calculateFinalScores();
-        io.to(roomCode).emit('game_finished', { rankings, winner: room.getWinner() });
+        io.to(code).emit('game_finished', { rankings, winner: room.getWinner() });
         return;
       }
     }
   });
 
   socket.on('next_turn', ({ roomCode }) => {
-    const room = rooms[roomCode];
+    const code = (roomCode || socket.roomCode || '').toUpperCase().trim();
+    const room = rooms[code] || rooms[roomCode];
     if (!room) return;
+    // Do NOT advance turn if game is actively waiting for a decision!
+    if (room.state === 'WAITING_FOR_DECISION') {
+      console.warn(`[TURN] next_turn blocked in ${code} - currently waiting for decision!`);
+      return;
+    }
     if (room.allRetired()) {
       const rankings = room.calculateFinalScores();
-      io.to(roomCode).emit('game_finished', { rankings, winner: room.getWinner() });
+      io.to(code).emit('game_finished', { rankings, winner: room.getWinner() });
       return;
     }
     const next = room.nextTurn();
-    if (next) io.to(roomCode).emit('turn_changed', { currentTurnPlayer: next, players: room.players });
+    if (next) io.to(code).emit('turn_changed', { currentTurnPlayer: next, players: room.players });
   });
 
   socket.on('soundboard_trigger', ({ roomCode, soundId }) => {

@@ -253,7 +253,7 @@ async function execute3DMove(player, steps) {
   // Sync local player with latest from currentPlayers
   const freshPlayer = currentPlayers.find(p => p.socketId === player.socketId) || player;
 
-  await dubaiBoard3D.animateCarMove(freshPlayer, steps, (p, nodeId, type) => {
+  const moveRes = await dubaiBoard3D.animateCarMove(freshPlayer, steps, (p, nodeId, type) => {
     if (type === 'payday') {
       // Tell server player passed over a payday tile
       socket.emit('player_passed_payday', { roomCode: currentRoomCode });
@@ -263,7 +263,8 @@ async function execute3DMove(player, steps) {
   });
 
   // Movement done – process final tile
-  const finalNodeId = freshPlayer.position;
+  const finalNodeId = (moveRes && moveRes.finalNodeId !== undefined) ? moveRes.finalNodeId : freshPlayer.position;
+  freshPlayer.position = finalNodeId;
   const finalNode = BOARD_NODES.find(n => n.id === finalNodeId) || BOARD_NODES[0];
   handleTileLanding(freshPlayer, finalNode);
 }
@@ -312,10 +313,17 @@ socket.on('decision_resolved', ({ players, updatedPlayer, option, decisionData }
 });
 
 // ── Stats updates ───────────────────────────────────────────────
-socket.on('player_stats_updated', ({ players, updatedPlayer, event, paydayAmount, careerAdvancement, newSalary, nodeTitle, nodeDescription }) => {
+socket.on('player_stats_updated', ({ players, updatedPlayer, event, paydayAmount, careerAdvancement, newSalary, nodeTitle, nodeDescription, isDecision }) => {
   currentPlayers = players;
   updateLeaderboard();
   if (dubaiBoard3D) dubaiBoard3D.updatePlayers(currentPlayers);
+
+  // If this update was emitted while waiting for a decision, DO NOT show a card or advance turn!
+  if (isDecision) return;
+  const landedNode = BOARD_NODES.find(n => n.id === (updatedPlayer ? updatedPlayer.position : null));
+  if (landedNode && (landedNode.decisionId || landedNode.type === 'decision' || landedNode.type === 'branch')) {
+    return;
+  }
 
   if (careerAdvancement && updatedPlayer) {
     showCard('📈', `${updatedPlayer.name} befördert!`, `Neues Gehalt: ${(newSalary || 0).toLocaleString()} €/Zahltag`, '', 4000);
@@ -327,7 +335,6 @@ socket.on('player_stats_updated', ({ players, updatedPlayer, event, paydayAmount
     showCard('💰', 'ZAHLTAG!', 'Gehaltseingang!', `<span style="color:#22c55e">+${paydayAmount.toLocaleString()} €</span>`, 3500);
   } else {
     // Normal / blank tile landing – show tile info or auto-advance
-    const landedNode = BOARD_NODES.find(n => n.id === (updatedPlayer ? updatedPlayer.position : null));
     if (landedNode && landedNode.description) {
       showCard(landedNode.icon || '📍', landedNode.title, landedNode.description, '', 2800);
     } else {
@@ -377,6 +384,14 @@ socket.on('game_finished', ({ rankings, winner }) => {
 
 // ── Turn changed ────────────────────────────────────────────────
 socket.on('turn_changed', ({ currentTurnPlayer, players }) => {
+  if (currentCardTimer) {
+    clearTimeout(currentCardTimer);
+    currentCardTimer = null;
+  }
+  if (decisionOverlayTv) decisionOverlayTv.classList.remove('active');
+  if (branchOverlay) branchOverlay.classList.remove('active');
+  if (actionOverlay) actionOverlay.classList.remove('active');
+
   currentPlayers = players;
   updateLeaderboard();
   setTurnText(currentTurnPlayer);
@@ -438,7 +453,12 @@ function spawnFloatingReaction(player, soundId) {
 }
 
 // ── Action Card helper ───────────────────────────────────────────
+let currentCardTimer = null;
 function showCard(icon, title, desc, rewardsHtml, autoDismissMs = 4000) {
+  if (currentCardTimer) {
+    clearTimeout(currentCardTimer);
+    currentCardTimer = null;
+  }
   cardIcon.textContent = icon;
   cardTitle.textContent = title;
   cardDesc.textContent = desc;
@@ -446,11 +466,30 @@ function showCard(icon, title, desc, rewardsHtml, autoDismissMs = 4000) {
   actionOverlay.classList.add('active');
   window.soundEngine && window.soundEngine.play('card_flip');
   if (autoDismissMs > 0) {
-    setTimeout(() => {
+    currentCardTimer = setTimeout(() => {
       actionOverlay.classList.remove('active');
+      currentCardTimer = null;
       socket.emit('next_turn', { roomCode: currentRoomCode });
     }, autoDismissMs);
   }
+}
+
+// Allow host to click actionOverlay or decisionOverlay to dismiss if stuck
+if (actionOverlay) {
+  actionOverlay.addEventListener('click', () => {
+    if (currentCardTimer) {
+      clearTimeout(currentCardTimer);
+      currentCardTimer = null;
+    }
+    actionOverlay.classList.remove('active');
+    socket.emit('next_turn', { roomCode: currentRoomCode });
+  });
+}
+
+if (decisionOverlayTv) {
+  decisionOverlayTv.addEventListener('click', () => {
+    decisionOverlayTv.classList.remove('active');
+  });
 }
 
 function buildEffectHtml(effects) {
