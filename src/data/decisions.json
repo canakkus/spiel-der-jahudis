@@ -6,8 +6,19 @@
     "icon": "🎯",
     "fieldType": "branch",
     "options": [
-      { "id": "studium", "label": "🎓 Studium (Mehr Gehalt, später Start)", "pathIndex": 1, "effects": { "money": -30000, "knowledge": 40 } },
-      { "id": "direkteinstieg", "label": "💼 Direkteinstieg (Sofort Geld, weniger Gehalt)", "pathIndex": 0, "effects": { "money": 20000, "knowledge": 0 } }
+      { "id": "studium", "label": "🎓 Studium (Mehr Gehalt, später Start)", "pathIndex": 0, "effects": { "money": -30000, "knowledge": 40 } },
+      { "id": "direkteinstieg", "label": "💼 Direkteinstieg (Sofort Geld, weniger Gehalt)", "pathIndex": 1, "effects": { "money": 20000, "knowledge": 0 } }
+    ]
+  },
+  {
+    "id": "risk_choice",
+    "title": "Sicherer Weg oder Risiko?",
+    "description": "Die zweite große Weggabelung deines Lebens. Gehst du auf Nummer Sicher oder riskierst du alles mit Krypto & Startups?",
+    "icon": "🎲",
+    "fieldType": "branch",
+    "options": [
+      { "id": "sicher", "label": "🛡️ Sicherer Pfad (Stetiges Gehalt, weniger Drama)", "pathIndex": 0, "effects": { "happiness": 20 } },
+      { "id": "risiko", "label": "🚀 Riskanter Pfad (Krypto, Startups, High Risk/High Reward)", "pathIndex": 1, "effects": { "happiness": 30 } }
     ]
   },
   {

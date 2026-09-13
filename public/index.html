@@ -118,6 +118,17 @@
     .decision-header h2 { font-size: 1.3rem; font-weight: 900; color: #a5b4fc; margin: 8px 0 4px; }
     .decision-header p { color: #cbd5e1; font-size: 14px; line-height: 1.5; }
 
+    /* Soundboard */
+    .soundboard-section { margin-top: auto; padding-top: 20px; padding-bottom: 12px; text-align: center; }
+    .soundboard-title { font-size: 11px; font-weight: 700; color: #64748b; letter-spacing: 1px; margin-bottom: 8px; }
+    .soundboard-buttons { display: flex; justify-content: center; gap: 8px; }
+    .btn-sound {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      font-size: 1.5rem; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn-sound:active { transform: scale(0.85); background: rgba(255,255,255,0.15); }
+
     /* Error */
     .error-msg { background: rgba(239,68,68,0.1); border: 1px solid var(--red); border-radius: 12px; padding: 14px; color: var(--red); font-size: 14px; margin-bottom: 16px; display: none; }
   </style>
@@ -184,6 +195,17 @@
   <div class="turn-indicator" id="turn-indicator">Warte auf deinen Zug...</div>
   <button class="btn-spin" id="btn-spin" disabled>🎰<br>SPIN</button>
   <div style="text-align:center; font-size:12px; color:#475569; margin-top:8px;">Warte auf deinen Zug</div>
+
+  <div class="soundboard-section">
+    <div class="soundboard-title">🔊 SOUNDBOARD REAKTIONEN</div>
+    <div class="soundboard-buttons">
+      <button class="btn-sound" data-sound="honk" title="Hupe">📢</button>
+      <button class="btn-sound" data-sound="kaching" title="Geld">💰</button>
+      <button class="btn-sound" data-sound="cheer" title="Klatschen">👏</button>
+      <button class="btn-sound" data-sound="laugh" title="Lachen">😂</button>
+      <button class="btn-sound" data-sound="fail" title="Fail">💀</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══ DECISION SCREEN ════════════════════════════════════ -->

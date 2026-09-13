@@ -168,9 +168,26 @@ socket.on('game_started', ({ players, currentTurnPlayer }) => {
   dubaiBoard3D.onReachBranch = (player, nodeId, remainingSteps, nextIds) => {
     return new Promise(resolve => {
       pendingBranchResolve = resolve;
-      // Show branch overlay on TV
       branchPlayerName.textContent = player.name;
       branchOverlay.classList.add('active');
+
+      const options = nextIds.map(id => {
+        const n = BOARD_NODES.find(node => node.id === id);
+        return {
+          id: id,
+          title: n ? n.title : `Pfad ${id}`,
+          icon: n ? n.icon : '➡️',
+          description: n ? n.description : ''
+        };
+      });
+
+      socket.emit('branch_reached', {
+        roomCode: currentRoomCode,
+        playerId: player.socketId,
+        nodeId,
+        remainingSteps,
+        options
+      });
     });
   };
 
@@ -295,19 +312,29 @@ socket.on('decision_resolved', ({ players, updatedPlayer, option, decisionData }
 });
 
 // ── Stats updates ───────────────────────────────────────────────
-socket.on('player_stats_updated', ({ players, updatedPlayer, event, paydayAmount, careerAdvancement, newSalary }) => {
+socket.on('player_stats_updated', ({ players, updatedPlayer, event, paydayAmount, careerAdvancement, newSalary, nodeTitle, nodeDescription }) => {
   currentPlayers = players;
   updateLeaderboard();
   if (dubaiBoard3D) dubaiBoard3D.updatePlayers(currentPlayers);
 
   if (careerAdvancement && updatedPlayer) {
-    showCard('📈', `${updatedPlayer.name} befördert!`, `Neues Gehalt: ${(newSalary || 0).toLocaleString()} €/Zahltag`, '');
+    showCard('📈', `${updatedPlayer.name} befördert!`, `Neues Gehalt: ${(newSalary || 0).toLocaleString()} €/Zahltag`, '', 4000);
   } else if (event) {
     const icon = event.type === 'positive' ? '🚀' : event.type === 'negative' ? '📉' : '🎲';
     const amountHtml = event.moneyEffect ? `<span style="color:${event.moneyEffect>0?'#22c55e':'#ef4444'}">${event.moneyEffect>0?'+':''}${event.moneyEffect.toLocaleString()} €</span>` : '';
-    showCard(icon, event.title, event.description, amountHtml);
+    showCard(icon, event.title, event.description, amountHtml, 4000);
   } else if (paydayAmount > 0) {
-    showCard('💰', 'ZAHLTAG!', 'Gehaltseingang!', `<span style="color:#22c55e">+${paydayAmount.toLocaleString()} €</span>`);
+    showCard('💰', 'ZAHLTAG!', 'Gehaltseingang!', `<span style="color:#22c55e">+${paydayAmount.toLocaleString()} €</span>`, 3500);
+  } else {
+    // Normal / blank tile landing – show tile info or auto-advance
+    const landedNode = BOARD_NODES.find(n => n.id === (updatedPlayer ? updatedPlayer.position : null));
+    if (landedNode && landedNode.description) {
+      showCard(landedNode.icon || '📍', landedNode.title, landedNode.description, '', 2800);
+    } else {
+      setTimeout(() => {
+        socket.emit('next_turn', { roomCode: currentRoomCode });
+      }, 1500);
+    }
   }
 });
 
@@ -329,7 +356,7 @@ socket.on('player_retired', ({ player, finalScore }) => {
       dubaiBoard3D.spawnConfetti(car.position);
     }
   }
-  showCard('🏝️', `${player.name} im Ruhestand!`, 'Endabrechnung läuft...', `<span style="color:#f59e0b">Score: ${finalScore.toLocaleString()}</span>`);
+  showCard('🏝️', `${player.name} im Ruhestand!`, 'Endabrechnung läuft...', `<span style="color:#f59e0b">Score: ${finalScore.toLocaleString()}</span>`, 5000);
   window.soundEngine && window.soundEngine.play('cheer');
 });
 
@@ -392,7 +419,23 @@ function updateLeaderboard() {
 // ── Soundboard ──────────────────────────────────────────────────
 socket.on('soundboard_reaction', ({ player, soundId }) => {
   window.soundEngine && window.soundEngine.play(soundId);
+  spawnFloatingReaction(player, soundId);
 });
+
+function spawnFloatingReaction(player, soundId) {
+  const soundIcons = { honk: '📢', kaching: '💰', cheer: '👏', laugh: '😂', fail: '💀' };
+  const icon = soundIcons[soundId] || (player.character && player.character.icon) || '🎉';
+  const el = document.createElement('div');
+  el.className = 'soundboard-float';
+  el.innerHTML = `
+    <span style="font-size:3.5rem; filter:drop-shadow(0 0 12px rgba(255,255,255,0.4));">${icon}</span>
+    <span style="font-size:13px; font-weight:900; color:${(player.character && player.character.color) || '#f59e0b'}; background:rgba(0,0,0,0.7); padding:2px 8px; border-radius:8px;">${player.name}</span>
+  `;
+  el.style.left = `${Math.random() * 65 + 15}%`;
+  el.style.bottom = '130px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
 
 // ── Action Card helper ───────────────────────────────────────────
 function showCard(icon, title, desc, rewardsHtml, autoDismissMs = 4000) {

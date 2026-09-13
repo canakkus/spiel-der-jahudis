@@ -432,25 +432,30 @@ class DubaiBoard3D {
         break;
       }
 
-      // BRANCH: multiple next nodes → ask player to choose
+      // BRANCH: multiple next nodes → ask player to choose or use pre-selected decision path
       if (currentNode.next.length > 1) {
-        stepsLeft = steps - s - 1;
-        car.isMoving = false;
-        if (this.onReachBranch) {
-          const chosenNextId = await this.onReachBranch(player, currentNodeId, stepsLeft, currentNode.next);
-          if (chosenNextId !== null && chosenNextId !== undefined) {
-            // Continue movement on chosen path
-            car.isMoving = true;
-            currentNodeId = chosenNextId;
-            player.position = currentNodeId;
-            await this.moveCarTo(car, currentNodeId);
-            // Now continue movement from here
-            if (stepsLeft > 0) {
-              const subResult = await this.animateCarMove({ ...player, position: currentNodeId }, stepsLeft, stepCallback);
-              car.isMoving = false;
-              this.resetCamera();
-              return subResult;
-            }
+        let chosenNextId = null;
+        if (player._chosenPath !== undefined && currentNode.next[player._chosenPath] !== undefined) {
+          chosenNextId = currentNode.next[player._chosenPath];
+          delete player._chosenPath;
+        } else if (this.onReachBranch) {
+          stepsLeft = steps - s - 1;
+          car.isMoving = false;
+          chosenNextId = await this.onReachBranch(player, currentNodeId, stepsLeft, currentNode.next);
+        }
+
+        if (chosenNextId !== null && chosenNextId !== undefined) {
+          // Continue movement on chosen path
+          car.isMoving = true;
+          currentNodeId = chosenNextId;
+          player.position = currentNodeId;
+          await this.moveCarTo(car, currentNodeId);
+          // Now continue movement from here
+          if (stepsLeft > 0) {
+            const subResult = await this.animateCarMove({ ...player, position: currentNodeId }, stepsLeft, stepCallback);
+            car.isMoving = false;
+            this.resetCamera();
+            return subResult;
           }
         }
         break;

@@ -134,6 +134,18 @@
     }
     .endgame-title { font-size: 2.2rem; font-weight: 900; color: var(--gold); margin-bottom: 24px; }
     #endgame-rankings { text-align: left; }
+
+    /* Soundboard Reaction Float */
+    .soundboard-float {
+      position: fixed; z-index: 999; display: flex; flex-direction: column; align-items: center;
+      pointer-events: none; animation: floatUp 2.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    @keyframes floatUp {
+      0% { opacity: 0; transform: translateY(0) scale(0.5); }
+      15% { opacity: 1; transform: translateY(-20px) scale(1.2); }
+      80% { opacity: 1; transform: translateY(-120px) scale(1); }
+      100% { opacity: 0; transform: translateY(-180px) scale(0.8); }
+    }
   </style>
 </head>
 <body>

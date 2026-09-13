@@ -64,7 +64,7 @@ const BOARD_NODES = [
   { id:45, x:8,  y:58, type:'payday',    title:'ZAHLTAG',        icon:'💰', color:'#22c55e', next:[46],   isStop:false, decisionId:null,           description:'Gehaltseingang – mit Bonus!' },
 
   // ── SECOND BRANCH: Safe vs. Risk (Y=64)
-  { id:46, x:8,  y:66, type:'branch',    title:'SCHICKSALSWAHL', icon:'⚖️', color:'#eab308', next:[47,60], isStop:true,  decisionId:'career_choice', description:'STOP! Zweite große Wahl: Sicherer Weg oder Risiko?' },
+  { id:46, x:8,  y:66, type:'branch',    title:'SCHICKSALSWAHL', icon:'⚖️', color:'#eab308', next:[47,60], isStop:true,  decisionId:'risk_choice', description:'STOP! Zweite große Wahl: Sicherer Weg oder Risiko?' },
 
   // Path A: Sicher (nodes 47-59)
   { id:47, x:18, y:66, type:'normal',    title:'NORMAL',         icon:'•',  color:'#334155', next:[48],   isStop:false, decisionId:null,           description:'Sicherer Pfad. Predictable.' },

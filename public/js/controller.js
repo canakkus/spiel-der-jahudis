@@ -268,6 +268,49 @@ socket.on('decision_resolved', ({ players }) => {
   if (!screens['game'].classList.contains('active')) showScreen('game');
 });
 
+// ── PATH CHOICE ───────────────────────────────────────────────
+socket.on('path_choice_required', ({ playerId, options }) => {
+  if (playerId !== socket.id) return;
+  if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+  showScreen('path-choice');
+  pathOptions.innerHTML = '';
+  options.forEach((opt, idx) => {
+    const btn = document.createElement('button');
+    btn.className = `btn-option ${idx === 0 ? 'option-a' : idx === 1 ? 'option-b' : 'option-c'}`;
+    btn.innerHTML = `
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span style="font-size:2.2rem;">${opt.icon}</span>
+        <div>
+          <div style="font-weight:900; font-size:16px;">${opt.title}</div>
+          <div style="font-size:13px; color:#94a3b8; margin-top:2px;">${opt.description}</div>
+        </div>
+      </div>
+    `;
+    btn.addEventListener('click', () => {
+      showScreen('game');
+      socket.emit('choose_path', { roomCode: currentRoomCode, chosenNodeId: opt.id });
+    });
+    pathOptions.appendChild(btn);
+  });
+});
+
+socket.on('path_chosen', () => {
+  if (screens['path-choice'] && screens['path-choice'].classList.contains('active')) {
+    showScreen('game');
+  }
+});
+
+// ── SOUNDBOARD ────────────────────────────────────────────────
+document.querySelectorAll('.btn-sound').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const soundId = btn.dataset.sound;
+    if (soundId) {
+      if (navigator.vibrate) navigator.vibrate(40);
+      socket.emit('soundboard_trigger', { roomCode: currentRoomCode, soundId });
+    }
+  });
+});
+
 // ── RETIREMENT ─────────────────────────────────────────────────
 socket.on('player_retired', ({ player, finalScore }) => {
   if (player.socketId !== socket.id) return;

@@ -10,6 +10,7 @@ const events = require('./src/data/events.json');
 const decisions = require('./src/data/decisions.json');
 const houses = require('./src/data/houses.json');
 const vehicles = require('./src/data/vehicles.json');
+const { BOARD_NODES } = require('./public/js/boardData');
 
 const app = express();
 const server = http.createServer(app);
@@ -67,7 +68,27 @@ function randomEvent() {
 }
 
 function processNodeLanding(room, player, node) {
-  let result = { type: node.type, tileEffect: node.effect || null, event: null, decision: null };
+  let result = {
+    type: node.type,
+    tileEffect: node.effect || null,
+    event: null,
+    decision: null,
+    waitingForDecision: false,
+    paydayAmount: 0,
+    nodeTitle: node.title,
+    nodeDescription: node.description
+  };
+
+  // 1. Explicit decision on node takes priority!
+  if (node.decisionId) {
+    const dec = decisions.find(d => d.id === node.decisionId);
+    if (dec) {
+      room.setWaitingForDecision(player.socketId, node.decisionId);
+      result.decision = dec;
+      result.waitingForDecision = true;
+      return result;
+    }
+  }
 
   switch (node.type) {
     case 'payday': {
@@ -84,18 +105,7 @@ function processNodeLanding(room, player, node) {
       }
       break;
     }
-    case 'decision': {
-      const decId = node.decisionId;
-      if (decId) {
-        const dec = decisions.find(d => d.id === decId);
-        if (dec) {
-          room.setWaitingForDecision(player.socketId, decId);
-          result.decision = dec;
-          result.waitingForDecision = true;
-        }
-      }
-      break;
-    }
+    case 'decision':
     case 'branch': {
       const decId = node.decisionId || 'career_choice';
       const dec = decisions.find(d => d.id === decId);
@@ -107,16 +117,13 @@ function processNodeLanding(room, player, node) {
       break;
     }
     case 'family': {
-      const decId = node.decisionId;
-      if (decId) {
-        const dec = decisions.find(d => d.id === decId);
-        if (dec) {
-          room.setWaitingForDecision(player.socketId, decId);
-          result.decision = dec;
-          result.waitingForDecision = true;
-        }
+      const decId = node.decisionId || 'marriage';
+      const dec = decisions.find(d => d.id === decId);
+      if (dec) {
+        room.setWaitingForDecision(player.socketId, decId);
+        result.decision = dec;
+        result.waitingForDecision = true;
       } else {
-        // Random family event
         const familyEvents = events.filter(e => e.id === 'erbschaft' || e.id === 'luxusurlaub');
         if (familyEvents.length) {
           const ev = familyEvents[Math.floor(Math.random() * familyEvents.length)];
@@ -127,16 +134,15 @@ function processNodeLanding(room, player, node) {
       break;
     }
     case 'house': {
-      const dec = decisions.find(d => d.id === 'house_purchase');
+      const dec = decisions.find(d => d.id === (node.decisionId || 'house_purchase'));
       if (dec) {
-        room.setWaitingForDecision(player.socketId, 'house_purchase');
+        room.setWaitingForDecision(player.socketId, dec.id);
         result.decision = dec;
         result.waitingForDecision = true;
       }
       break;
     }
     case 'career': {
-      // Career advancement
       if (player.career && player.career.level < player.career.maxLevel) {
         player.career.level++;
         player.salary = player.career.salaryPerLevel[player.career.level - 1];
@@ -145,7 +151,6 @@ function processNodeLanding(room, player, node) {
         result.newSalary = player.salary;
         result.tileEffect = { ...result.tileEffect, salary: player.salary };
       } else {
-        // Offer a new career decision
         const dec = decisions.find(d => d.id === 'job_offer');
         if (dec) {
           room.setWaitingForDecision(player.socketId, 'job_offer');
@@ -158,8 +163,7 @@ function processNodeLanding(room, player, node) {
     case 'knowledge': {
       player.knowledge = (player.knowledge || 0) + 20;
       result.tileEffect = { ...(result.tileEffect || {}), knowledge: 20 };
-      // Chance of education decision
-      if (Math.random() < 0.3) {
+      if (Math.random() < 0.35) {
         const dec = decisions.find(d => d.id === 'education');
         if (dec) {
           room.setWaitingForDecision(player.socketId, 'education');
@@ -181,8 +185,8 @@ function processNodeLanding(room, player, node) {
       break;
     }
     default: {
-      // Normal tile - 15% random event
-      if (Math.random() < 0.15) {
+      // Normal tile - 25% random event
+      if (Math.random() < 0.25) {
         const ev = randomEvent();
         room.applyEvent(player.socketId, ev);
         result.event = ev;
@@ -311,6 +315,20 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('get_characters', () => {
+    socket.emit('characters_list', PRESET_CHARACTERS);
+  });
+
+  socket.on('branch_reached', (data) => {
+    io.to(data.roomCode).emit('path_choice_required', data);
+  });
+
+  socket.on('choose_path', ({ roomCode, chosenNodeId }) => {
+    const room = rooms[roomCode];
+    if (!room) return;
+    io.to(roomCode).emit('path_chosen', { playerId: socket.id, chosenNodeId });
+  });
+
   // Player landed on a tile (final position after movement)
   socket.on('player_moved_to_tile', ({ roomCode, playerId, targetNodeId }) => {
     const room = rooms[roomCode];
@@ -320,15 +338,7 @@ io.on('connection', (socket) => {
 
     player.position = targetNodeId;
 
-    // We need boardData on the server to check tile type
-    // For now we rely on the client passing node type info
-    // Actually the client sends us the nodeId, we need to know the type
-    // The boardData is served as a static file - let's accept nodeType from client
-    // Server should ideally have the board data too
-    const { nodeType, nodeDecisionId } = arguments[0] && typeof arguments[0] === 'object' ? arguments[0] : {};
-    
-    // Create a synthetic node from what we know
-    const node = { id: targetNodeId, type: nodeType || 'normal', decisionId: nodeDecisionId || null, effect: null };
+    const node = BOARD_NODES.find(n => n.id === targetNodeId) || { id: targetNodeId, type: 'normal', title: 'Tile', description: '' };
     const result = processNodeLanding(room, player, node);
 
     if (result.waitingForDecision) {
@@ -346,10 +356,6 @@ io.on('connection', (socket) => {
     if (result.retired) {
       io.to(roomCode).emit('player_retired', { player, finalScore: result.finalScore });
       io.to(roomCode).emit('player_stats_updated', { players: room.players, updatedPlayer: player });
-      setTimeout(() => {
-        const next = room.nextTurn();
-        if (next) io.to(roomCode).emit('turn_changed', { currentTurnPlayer: next, players: room.players });
-      }, 3000);
       return;
     }
 
@@ -359,7 +365,9 @@ io.on('connection', (socket) => {
       event: result.event || null,
       paydayAmount: result.paydayAmount || null,
       careerAdvancement: result.careerAdvancement || false,
-      newSalary: result.newSalary || null
+      newSalary: result.newSalary || null,
+      nodeTitle: node.title,
+      nodeDescription: node.description
     });
   });
 
@@ -392,11 +400,6 @@ io.on('connection', (socket) => {
         return;
       }
     }
-
-    setTimeout(() => {
-      const next = room.nextTurn();
-      if (next) io.to(roomCode).emit('turn_changed', { currentTurnPlayer: next, players: room.players });
-    }, 4000);
   });
 
   socket.on('next_turn', ({ roomCode }) => {
