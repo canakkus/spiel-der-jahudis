@@ -1,7 +1,9 @@
 // ============================================================
-// SPIEL DER JAHUDIS – 3D Dubai Board Engine (Three.js)
-// Full movement: STOP tiles, payday-while-passing, branches
+// SPIEL DER JAHUDIS – 3D Board Engine 2.0 (Three.js)
+// "Spiel des Lebens" Edition with 5 Themed Biomes,
+// Peg-Figurine Convertibles & Cinematic Chase Camera
 // ============================================================
+
 class DubaiBoard3D {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
@@ -12,15 +14,19 @@ class DubaiBoard3D {
     this.cars = {};
     this.tileMeshes = [];
     this.node3DPositions = [];
-    this.targetCameraPos = new THREE.Vector3(0, 55, 75);
+    this.targetCameraPos = new THREE.Vector3(0, 52, 68);
     this.targetCameraLookAt = new THREE.Vector3(0, 0, 0);
     this.currentCameraLookAt = new THREE.Vector3(0, 0, 0);
     this.isTrackingCar = false;
     this.trackedCar = null;
-    // Callback set by host.js for movement events
-    this.onPassPayday = null;    // (player, nodeId) => void
-    this.onReachBranch = null;   // (player, nodeId, remainingSteps, next) => Promise<chosenNextId>
-    this.onLandStop = null;      // (player, nodeId) => void
+    this.carHeading = new THREE.Vector3(0, 0, -1);
+    this.waterMesh = null;
+    this.animatedObjects = [];
+
+    // Callbacks from host.js
+    this.onPassPayday = null;
+    this.onReachBranch = null;
+    this.onLandStop = null;
   }
 
   init() {
@@ -28,150 +34,446 @@ class DubaiBoard3D {
     const height = this.container.clientHeight || (window.innerHeight - 140);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#0b1329');
-    this.scene.fog = new THREE.FogExp2('#0b1329', 0.006);
+    this.scene.background = new THREE.Color('#0a1128');
+    this.scene.fog = new THREE.FogExp2('#0a1128', 0.005);
 
-    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1200);
+    this.camera = new THREE.PerspectiveCamera(46, width / height, 0.1, 1500);
     this.camera.position.set(0, 55, 75);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance'
+    });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
+    this.renderer.toneMappingExposure = 1.18;
     this.container.appendChild(this.renderer.domElement);
 
     if (THREE.OrbitControls) {
       this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
       this.controls.enableDamping = true;
       this.controls.dampingFactor = 0.05;
-      this.controls.maxPolarAngle = Math.PI / 2.1;
-      this.controls.minDistance = 20;
-      this.controls.maxDistance = 160;
+      this.controls.maxPolarAngle = Math.PI / 2.05;
+      this.controls.minDistance = 15;
+      this.controls.maxDistance = 180;
     }
 
     this.setupLighting();
-    this.buildDubaiEnvironment();
+    this.buildThemedWorld();
     this.buildRoadNetwork();
 
     window.addEventListener('resize', () => this.onResize());
     this.animate();
   }
 
+  // ── High-Definition Lighting Setup ────────────────────────────
   setupLighting() {
-    this.scene.add(new THREE.AmbientLight(0xffeedd, 0.7));
+    // Warm hemisphere ambient light (sky blue + warm ground bounce)
+    const hemiLight = new THREE.HemisphereLight(0x93c5fd, 0x1e293b, 0.65);
+    this.scene.add(hemiLight);
 
-    const sun = new THREE.DirectionalLight(0xfff3d0, 1.2);
-    sun.position.set(40, 80, 50);
+    // Warm main sun light with soft shadows
+    const sun = new THREE.DirectionalLight(0xfff5db, 1.35);
+    sun.position.set(55, 110, 65);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 2048;
     sun.shadow.mapSize.height = 2048;
     sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 300;
-    sun.shadow.camera.left = -80;
-    sun.shadow.camera.right = 80;
-    sun.shadow.camera.top = 80;
-    sun.shadow.camera.bottom = -80;
+    sun.shadow.camera.far = 350;
+    sun.shadow.camera.left = -95;
+    sun.shadow.camera.right = 95;
+    sun.shadow.camera.top = 95;
+    sun.shadow.camera.bottom = -95;
+    sun.shadow.bias = -0.0005;
     this.scene.add(sun);
 
-    const rim = new THREE.DirectionalLight(0x06b6d4, 0.4);
-    rim.position.set(-40, 30, -50);
-    this.scene.add(rim);
+    // Cyan rim light from ocean
+    const cyanRim = new THREE.DirectionalLight(0x06b6d4, 0.45);
+    cyanRim.position.set(-65, 45, -55);
+    this.scene.add(cyanRim);
+
+    // Magenta accent light for Casino & City areas
+    const pinkRim = new THREE.DirectionalLight(0xec4899, 0.35);
+    pinkRim.position.set(40, 25, 60);
+    this.scene.add(pinkRim);
   }
 
-  buildDubaiEnvironment() {
-    // Ocean
-    const waterGeo = new THREE.PlaneGeometry(500, 500);
-    const waterMat = new THREE.MeshStandardMaterial({ color: 0x0891b2, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.85 });
-    const water = new THREE.Mesh(waterGeo, waterMat);
-    water.rotation.x = -Math.PI / 2;
-    water.position.y = -0.5;
-    water.receiveShadow = true;
-    this.scene.add(water);
+  // ── Build 5 Thematic Biomes (Spiel des Lebens World) ───────────
+  buildThemedWorld() {
+    // 1. Turquoise Ocean
+    const waterGeo = new THREE.PlaneGeometry(600, 600, 32, 32);
+    const waterMat = new THREE.MeshStandardMaterial({
+      color: 0x0284c7,
+      roughness: 0.12,
+      metalness: 0.75,
+      transparent: true,
+      opacity: 0.88
+    });
+    this.waterMesh = new THREE.Mesh(waterGeo, waterMat);
+    this.waterMesh.rotation.x = -Math.PI / 2;
+    this.waterMesh.position.y = -0.6;
+    this.waterMesh.receiveShadow = true;
+    this.scene.add(this.waterMesh);
 
-    // Large Island
-    const islandGeo = new THREE.CylinderGeometry(72, 76, 2, 64);
-    const islandMat = new THREE.MeshStandardMaterial({ color: 0xfde047, roughness: 0.85, metalness: 0.05 });
-    const island = new THREE.Mesh(islandGeo, islandMat);
-    island.position.y = 0;
-    island.receiveShadow = true;
-    this.scene.add(island);
+    // 2. Main Land Platform (Beveled Continent)
+    const continentGeo = new THREE.CylinderGeometry(78, 84, 2.4, 64);
+    const continentMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.9,
+      metalness: 0.1
+    });
+    const continent = new THREE.Mesh(continentGeo, continentMat);
+    continent.position.y = 0;
+    continent.receiveShadow = true;
+    this.scene.add(continent);
 
-    // Skyscrapers
-    this.createSkyscraper(0, 15, -45, 5, 50, 0x38bdf8, 0xf59e0b);
-    this.createSkyscraper(-30, 0, -35, 6, 32, 0x0284c7);
-    this.createSkyscraper(30, 0, -34, 7, 38, 0xf59e0b);
-    this.createSkyscraper(48, 0, -18, 5, 26, 0x818cf8);
-    this.createSkyscraper(-52, 0, 5, 6, 22, 0x06b6d4);
-    this.createSkyscraper(56, 0, 10, 7, 28, 0xec4899);
-    this.createSkyscraper(-40, 0, 30, 5, 18, 0x22c55e);
-    this.createSkyscraper(44, 0, 38, 4, 15, 0xa855f7);
-    this.createSailHotel(-45, 0, -24);
+    // ── Biome 1: Campus & Uni (North-West) ──────────────────────
+    this.buildCampusBiome(-40, 0, -32);
 
-    // Palm trees
-    const palms = [[-20,12],[-10,-18],[10,-16],[22,14],[-32,-8],[30,-8],[-46,18],[46,-4],[-8,28],[16,30],[-28,26],[32,26],[-15,22],[15,22]];
-    palms.forEach(p => this.createPalmTree(p[0], 1, p[1]));
+    // ── Biome 2: Downtown Metropolis (North / North-East) ────────
+    this.buildDowntownBiome(32, 0, -26);
 
-    // Yachts
-    this.createYacht(-60, -0.2, 35, 0.4);
-    this.createYacht(60, -0.2, -48, -0.8);
-    this.createYacht(65, -0.2, 30, 1.2);
-    this.createYacht(-55, -0.2, -40, 0.9);
+    // ── Biome 3: Suburbia & Family (East / South-East) ──────────
+    this.buildSuburbiaBiome(42, 0, 18);
+
+    // ── Biome 4: Casino & Crypto Dunes (Center / West) ──────────
+    this.buildCasinoBiome(-16, 0, 14);
+
+    // ── Biome 5: Retirement Beach Paradise (South / South-West) ─
+    this.buildBeachBiome(16, 0, 42);
   }
 
+  // ── 🎓 BIOME 1: Campus & Uni ──────────────────────────────────
+  buildCampusBiome(cx, cy, cz) {
+    // Green Campus lawn plate
+    const lawnGeo = new THREE.CylinderGeometry(28, 30, 0.4, 32);
+    const lawnMat = new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.85 });
+    const lawn = new THREE.Mesh(lawnGeo, lawnMat);
+    lawn.position.set(cx, 1.2, cz);
+    lawn.receiveShadow = true;
+    this.scene.add(lawn);
+
+    // Main Academic Lecture Hall
+    const hallGroup = new THREE.Group();
+    hallGroup.position.set(cx - 6, 1.4, cz - 8);
+
+    // Hall base & roof
+    const bldgGeo = new THREE.BoxGeometry(14, 7, 10);
+    const bldgMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.3, metalness: 0.1 });
+    const bldg = new THREE.Mesh(bldgGeo, bldgMat);
+    bldg.position.y = 3.5;
+    bldg.castShadow = true;
+    hallGroup.add(bldg);
+
+    // Classical Pediment / Gable roof
+    const roofGeo = new THREE.ConeGeometry(9.5, 4.5, 4);
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.4 });
+    const roof = new THREE.Mesh(roofGeo, roofMat);
+    roof.position.y = 9.25;
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    hallGroup.add(roof);
+
+    // Columns
+    for (let c = -4.5; c <= 4.5; c += 3) {
+      const colGeo = new THREE.CylinderGeometry(0.35, 0.35, 6, 12);
+      const colMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+      const col = new THREE.Mesh(colGeo, colMat);
+      col.position.set(c, 3, 5.2);
+      col.castShadow = true;
+      hallGroup.add(col);
+    }
+    this.scene.add(hallGroup);
+
+    // Library Tower with Clock
+    const libGroup = new THREE.Group();
+    libGroup.position.set(cx + 10, 1.4, cz - 4);
+    const towerGeo = new THREE.BoxGeometry(5, 14, 5);
+    const towerMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
+    const tower = new THREE.Mesh(towerGeo, towerMat);
+    tower.position.y = 7;
+    tower.castShadow = true;
+    libGroup.add(tower);
+
+    const spireGeo = new THREE.ConeGeometry(3.5, 5, 4);
+    const spireMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.8, roughness: 0.2 });
+    const spire = new THREE.Mesh(spireGeo, spireMat);
+    spire.position.y = 16.5;
+    spire.rotation.y = Math.PI / 4;
+    libGroup.add(spire);
+    this.scene.add(libGroup);
+
+    // Campus Trees
+    const trees = [
+      [cx - 15, cz + 6], [cx - 8, cz + 10], [cx + 4, cz + 8],
+      [cx + 14, cz + 6], [cx - 18, cz - 4], [cx + 12, cz - 12]
+    ];
+    trees.forEach(p => this.createCampusTree(p[0], 1.4, p[1]));
+  }
+
+  // ── 🏙️ BIOME 2: Downtown Metropolis ──────────────────────────
+  buildDowntownBiome(cx, cy, cz) {
+    // Dark Asphalt Plaza
+    const plazaGeo = new THREE.CylinderGeometry(32, 34, 0.4, 32);
+    const plazaMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7, metalness: 0.3 });
+    const plaza = new THREE.Mesh(plazaGeo, plazaMat);
+    plaza.position.set(cx, 1.2, cz);
+    plaza.receiveShadow = true;
+    this.scene.add(plaza);
+
+    // Modern Luxury Skyscrapers
+    this.createSkyscraper(cx - 8, 1.4, cz - 10, 8, 48, 0x0284c7, 0x38bdf8);
+    this.createSkyscraper(cx + 8, 1.4, cz - 12, 7, 56, 0xf59e0b, 0xfef08a);
+    this.createSkyscraper(cx + 16, 1.4, cz + 4, 9, 42, 0x6366f1, 0xa5b4fc);
+    this.createSkyscraper(cx - 14, 1.4, cz + 2, 7, 36, 0x06b6d4, 0x67e8f9);
+    this.createSkyscraper(cx + 4, 1.4, cz + 10, 6, 28, 0xec4899, 0xf472b6);
+
+    // Street lamps
+    const lamps = [
+      [cx - 2, cz - 4], [cx + 2, cz + 2], [cx + 12, cz - 2], [cx - 10, cz - 4]
+    ];
+    lamps.forEach(p => this.createStreetLamp(p[0], 1.4, p[1]));
+  }
+
+  // ── 🏡 BIOME 3: Suburbia & Family ─────────────────────────────
+  buildSuburbiaBiome(cx, cy, cz) {
+    // Suburban Green lawn plate
+    const subLawnGeo = new THREE.CylinderGeometry(30, 32, 0.4, 32);
+    const subLawnMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.9 });
+    const subLawn = new THREE.Mesh(subLawnGeo, subLawnMat);
+    subLawn.position.set(cx, 1.2, cz);
+    subLawn.receiveShadow = true;
+    this.scene.add(subLawn);
+
+    // Cozy Family Villas
+    this.createSuburbanHouse(cx - 8, 1.4, cz - 8, 0xfbbf24, 0xe11d48); // Yellow villa, red roof
+    this.createSuburbanHouse(cx + 8, 1.4, cz - 4, 0xffffff, 0x2563eb); // White villa, blue roof
+    this.createSuburbanHouse(cx - 4, 1.4, cz + 10, 0xf3f4f6, 0xd97706); // Modern grey villa
+    this.createSuburbanHouse(cx + 10, 1.4, cz + 8, 0xfce7f3, 0x9333ea); // Pink villa
+
+    // Flowering Garden Trees & Shrubs
+    const gardenTrees = [
+      [cx - 14, cz - 4], [cx + 14, cz - 12], [cx - 12, cz + 6],
+      [cx + 15, cz + 3], [cx + 3, cz - 12]
+    ];
+    gardenTrees.forEach(p => this.createCampusTree(p[0], 1.4, p[1], 0xf472b6)); // Cherry blossom pink
+  }
+
+  // ── 🎰 BIOME 4: Casino & Crypto Dunes ─────────────────────────
+  buildCasinoBiome(cx, cy, cz) {
+    // Golden Sand / Casino Plaza
+    const casinoPlazaGeo = new THREE.CylinderGeometry(28, 30, 0.4, 32);
+    const casinoPlazaMat = new THREE.MeshStandardMaterial({ color: 0xca8a04, roughness: 0.5, metalness: 0.4 });
+    const casinoPlaza = new THREE.Mesh(casinoPlazaGeo, casinoPlazaMat);
+    casinoPlaza.position.set(cx, 1.2, cz);
+    casinoPlaza.receiveShadow = true;
+    this.scene.add(casinoPlaza);
+
+    // Luxor-Style Golden Pyramid Casino
+    const pyramidGeo = new THREE.ConeGeometry(13, 14, 4);
+    const pyramidMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      metalness: 0.85,
+      roughness: 0.15
+    });
+    const pyramid = new THREE.Mesh(pyramidGeo, pyramidMat);
+    pyramid.position.set(cx - 6, 8.4, cz - 4);
+    pyramid.rotation.y = Math.PI / 4;
+    pyramid.castShadow = true;
+    this.scene.add(pyramid);
+
+    // Apex laser light beam atop Pyramid
+    const beamGeo = new THREE.CylinderGeometry(0.3, 0.8, 30, 16);
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 });
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.set(cx - 6, 29, cz - 4);
+    this.scene.add(beam);
+
+    // Giant Rotating 3D Bitcoin Sculpture
+    const btcGroup = new THREE.Group();
+    btcGroup.position.set(cx + 8, 5, cz + 6);
+    const coinGeo = new THREE.CylinderGeometry(3.5, 3.5, 0.7, 32);
+    const coinMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.95, roughness: 0.1 });
+    const coin = new THREE.Mesh(coinGeo, coinMat);
+    coin.rotation.x = Math.PI / 2;
+    coin.castShadow = true;
+    btcGroup.add(coin);
+
+    const btcPillarGeo = new THREE.CylinderGeometry(1.2, 1.6, 4, 16);
+    const btcPillarMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8 });
+    const btcPillar = new THREE.Mesh(btcPillarGeo, btcPillarMat);
+    btcPillar.position.y = -2.5;
+    btcGroup.add(btcPillar);
+
+    this.scene.add(btcGroup);
+    this.animatedObjects.push({ obj: coin, type: 'rotateY', speed: 0.025 });
+
+    // Neon Palms (Hot Pink & Cyan glowing palms)
+    this.createNeonPalm(cx - 14, 1.4, cz + 8, 0x06b6d4);
+    this.createNeonPalm(cx + 6, 1.4, cz - 12, 0xec4899);
+    this.createNeonPalm(cx - 4, 1.4, cz + 14, 0xa855f7);
+  }
+
+  // ── 🏝️ BIOME 5: Retirement Paradise Beach ──────────────────────
+  buildBeachBiome(cx, cy, cz) {
+    // Warm Sand Shore
+    const beachGeo = new THREE.CylinderGeometry(32, 34, 0.4, 32);
+    const beachMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.9 });
+    const beach = new THREE.Mesh(beachGeo, beachMat);
+    beach.position.set(cx, 1.2, cz);
+    beach.receiveShadow = true;
+    this.scene.add(beach);
+
+    // Tropical Curved Palm Trees
+    const palms = [
+      [cx - 16, cz + 4], [cx - 8, cz + 12], [cx + 12, cz + 8],
+      [cx + 18, cz - 2], [cx - 2, cz + 16]
+    ];
+    palms.forEach(p => this.createTropicalPalm(p[0], 1.4, p[1]));
+
+    // Luxury Super-Yacht in the bay
+    this.createSuperYacht(cx - 28, 0, cz + 24, 0.75);
+
+    // Grand Golden Finish Arch at node 76
+    const archGroup = new THREE.Group();
+    archGroup.position.set(cx + 20, 1.4, cz - 2);
+
+    const archGeo = new THREE.TorusGeometry(4.5, 0.6, 16, 32, Math.PI);
+    const archMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.1 });
+    const arch = new THREE.Mesh(archGeo, archMat);
+    arch.position.y = 4.5;
+    arch.castShadow = true;
+    archGroup.add(arch);
+
+    // Victory Podium
+    const podGeo = new THREE.CylinderGeometry(3, 3.5, 1.2, 16);
+    const podMat = new THREE.MeshStandardMaterial({ color: 0x10b981, metalness: 0.6, roughness: 0.3 });
+    const pod = new THREE.Mesh(podGeo, podMat);
+    pod.position.y = 0.6;
+    archGroup.add(pod);
+
+    this.scene.add(archGroup);
+  }
+
+  // ── 3D Asset Helpers ──────────────────────────────────────────
   createSkyscraper(x, y, z, width, height, color, glowColor) {
     const group = new THREE.Group();
-    group.position.set(x, 1, z);
+    group.position.set(x, y, z);
+
     const geo = new THREE.BoxGeometry(width, height, width);
-    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.2, metalness: 0.85 });
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.25, metalness: 0.8 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.y = height / 2;
     mesh.castShadow = true;
+    mesh.receiveShadow = true;
     group.add(mesh);
-    const spireGeo = new THREE.ConeGeometry(width * 0.4, height * 0.25, 8);
+
+    // Spire
+    const spireGeo = new THREE.ConeGeometry(width * 0.35, height * 0.25, 8);
     const spireMat = new THREE.MeshStandardMaterial({ color: glowColor || 0xffffff, metalness: 0.9, roughness: 0.1 });
     const spire = new THREE.Mesh(spireGeo, spireMat);
     spire.position.y = height + height * 0.125;
     group.add(spire);
+
     this.scene.add(group);
   }
 
-  createSailHotel(x, y, z) {
-    const group = new THREE.Group();
-    group.position.set(x, 1, z);
-    const sailGeo = new THREE.CylinderGeometry(0.5, 7, 30, 16, 1, false, 0, Math.PI);
-    const sailMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.3 });
-    const sail = new THREE.Mesh(sailGeo, sailMat);
-    sail.position.y = 15;
-    sail.rotation.y = Math.PI / 4;
-    sail.castShadow = true;
-    group.add(sail);
-    const heliGeo = new THREE.CylinderGeometry(3, 3, 0.6, 16);
-    const heliMat = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.5 });
-    const heli = new THREE.Mesh(heliGeo, heliMat);
-    heli.position.set(2, 24, 2);
-    group.add(heli);
-    this.scene.add(group);
-  }
-
-  createPalmTree(x, y, z) {
+  createSuburbanHouse(x, y, z, wallColor, roofColor) {
     const group = new THREE.Group();
     group.position.set(x, y, z);
-    const trunkGeo = new THREE.CylinderGeometry(0.3, 0.5, 4.5, 8);
+
+    const wallGeo = new THREE.BoxGeometry(6, 4.2, 7);
+    const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.5 });
+    const walls = new THREE.Mesh(wallGeo, wallMat);
+    walls.position.y = 2.1;
+    walls.castShadow = true;
+    group.add(walls);
+
+    // Pitched Roof
+    const roofGeo = new THREE.ConeGeometry(5.8, 3.2, 4);
+    const roofMat = new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.4 });
+    const roof = new THREE.Mesh(roofGeo, roofMat);
+    roof.position.y = 5.8;
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    group.add(roof);
+
+    // Chimney
+    const chimGeo = new THREE.BoxGeometry(0.8, 2, 0.8);
+    const chimMat = new THREE.MeshStandardMaterial({ color: 0x78350f });
+    const chim = new THREE.Mesh(chimGeo, chimMat);
+    chim.position.set(1.5, 6.2, 1);
+    group.add(chim);
+
+    this.scene.add(group);
+  }
+
+  createCampusTree(x, y, z, leafColor = 0x16a34a) {
+    const group = new THREE.Group();
+    group.position.set(x, y, z);
+
+    const trunkGeo = new THREE.CylinderGeometry(0.3, 0.45, 3.5, 8);
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 });
     const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-    trunk.position.y = 2.25;
-    trunk.rotation.z = (Math.random() - 0.5) * 0.25;
+    trunk.position.y = 1.75;
     trunk.castShadow = true;
     group.add(trunk);
-    const leafMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.6 });
+
+    const crownGeo = new THREE.DodecahedronGeometry(2.4, 1);
+    const crownMat = new THREE.MeshStandardMaterial({ color: leafColor, roughness: 0.7 });
+    const crown = new THREE.Mesh(crownGeo, crownMat);
+    crown.position.y = 4.2;
+    crown.castShadow = true;
+    group.add(crown);
+
+    this.scene.add(group);
+  }
+
+  createTropicalPalm(x, y, z) {
+    const group = new THREE.Group();
+    group.position.set(x, y, z);
+
+    const trunkGeo = new THREE.CylinderGeometry(0.35, 0.6, 6, 8);
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85 });
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.position.y = 3;
+    trunk.rotation.z = (Math.random() - 0.5) * 0.35;
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.5 });
     for (let i = 0; i < 7; i++) {
       const angle = (i / 7) * Math.PI * 2;
-      const leafGeo = new THREE.ConeGeometry(1.3, 3.2, 4);
+      const leafGeo = new THREE.ConeGeometry(1.4, 4.2, 4);
       const leaf = new THREE.Mesh(leafGeo, leafMat);
-      leaf.position.set(Math.cos(angle) * 1.3, 4.5, Math.sin(angle) * 1.3);
+      leaf.position.set(Math.cos(angle) * 1.5, 6, Math.sin(angle) * 1.5);
+      leaf.rotation.x = Math.PI / 2.7;
+      leaf.rotation.y = angle;
+      group.add(leaf);
+    }
+    this.scene.add(group);
+  }
+
+  createNeonPalm(x, y, z, glowHex) {
+    const group = new THREE.Group();
+    group.position.set(x, y, z);
+
+    const trunkGeo = new THREE.CylinderGeometry(0.25, 0.45, 5, 8);
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4, metalness: 0.8 });
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.position.y = 2.5;
+    group.add(trunk);
+
+    const leafMat = new THREE.MeshBasicMaterial({ color: glowHex });
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const leafGeo = new THREE.ConeGeometry(1.2, 3.5, 4);
+      const leaf = new THREE.Mesh(leafGeo, leafMat);
+      leaf.position.set(Math.cos(angle) * 1.4, 5, Math.sin(angle) * 1.4);
       leaf.rotation.x = Math.PI / 2.8;
       leaf.rotation.y = angle;
       group.add(leaf);
@@ -179,29 +481,50 @@ class DubaiBoard3D {
     this.scene.add(group);
   }
 
-  createYacht(x, y, z, rot) {
+  createStreetLamp(x, y, z) {
     const group = new THREE.Group();
     group.position.set(x, y, z);
-    group.rotation.y = rot;
-    const hullGeo = new THREE.BoxGeometry(4, 1.4, 12);
-    const hullMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.5 });
-    const hull = new THREE.Mesh(hullGeo, hullMat);
-    hull.position.y = 0.7;
-    group.add(hull);
-    const cabinGeo = new THREE.BoxGeometry(3, 1.4, 6);
-    const cabinMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.8 });
-    const cabin = new THREE.Mesh(cabinGeo, cabinMat);
-    cabin.position.set(0, 2.1, -1);
-    group.add(cabin);
+    const poleGeo = new THREE.CylinderGeometry(0.12, 0.18, 4.5, 8);
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9 });
+    const pole = new THREE.Mesh(poleGeo, poleMat);
+    pole.position.y = 2.25;
+    group.add(pole);
+
+    const headGeo = new THREE.BoxGeometry(0.8, 0.25, 0.5);
+    const headMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.set(0.4, 4.5, 0);
+    group.add(head);
+
     this.scene.add(group);
   }
 
-  // ── Map 2D board coords (0-100) to 3D world ──────────────
+  createSuperYacht(x, y, z, rot) {
+    const group = new THREE.Group();
+    group.position.set(x, y, z);
+    group.rotation.y = rot;
+
+    const hullGeo = new THREE.BoxGeometry(5.5, 2, 16);
+    const hullMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15, metalness: 0.6 });
+    const hull = new THREE.Mesh(hullGeo, hullMat);
+    hull.position.y = 1;
+    group.add(hull);
+
+    const deckGeo = new THREE.BoxGeometry(4.2, 1.8, 8);
+    const deckMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.9 });
+    const deck = new THREE.Mesh(deckGeo, deckMat);
+    deck.position.set(0, 2.7, -1);
+    group.add(deck);
+
+    this.scene.add(group);
+  }
+
+  // ── 🛣️ 3D Coordinates & Road Network ─────────────────────────
   mapTo3D(x, y) {
     return new THREE.Vector3(
-      ((x - 50) / 50) * 62,   // -62 .. +62
-      1.2,
-      ((y - 50) / 50) * 42    // -42 .. +42
+      ((x - 50) / 50) * 64, // -64 .. +64
+      1.3,
+      ((y - 50) / 50) * 44  // -44 .. +44
     );
   }
 
@@ -212,16 +535,17 @@ class DubaiBoard3D {
       raw: node
     }));
 
-    // Roads
+    // Generate asphalt road ribbons
     BOARD_NODES.forEach(node => {
-      const from = this.node3DPositions.find(n => n.id === node.id).pos;
+      const fromNode = this.node3DPositions.find(n => n.id === node.id);
+      if (!fromNode) return;
       node.next.forEach(targetId => {
-        const toData = this.node3DPositions.find(n => n.id === targetId);
-        if (toData) this.createRoadSegment(from, toData.pos);
+        const toNode = this.node3DPositions.find(n => n.id === targetId);
+        if (toNode) this.createRoadSegment(fromNode.pos, toNode.pos);
       });
     });
 
-    // Tile pedestals
+    // Generate tile pedestals
     this.node3DPositions.forEach(n => this.createTilePedestal(n.pos, n.raw));
   }
 
@@ -230,16 +554,22 @@ class DubaiBoard3D {
     const len = dir.length();
     const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
 
-    const roadGeo = new THREE.BoxGeometry(2.6, 0.2, len);
-    const roadMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7, metalness: 0.2 });
+    // Dark Road Tarmac
+    const roadGeo = new THREE.BoxGeometry(2.8, 0.22, len);
+    const roadMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.65,
+      metalness: 0.25
+    });
     const road = new THREE.Mesh(roadGeo, roadMat);
     road.position.copy(mid);
-    road.position.y = p1.y - 0.05;
+    road.position.y = p1.y - 0.06;
     road.lookAt(p2);
     road.receiveShadow = true;
     this.scene.add(road);
 
-    const lineGeo = new THREE.BoxGeometry(0.3, 0.22, len * 0.82);
+    // Yellow Dashed Centerline
+    const lineGeo = new THREE.BoxGeometry(0.28, 0.24, len * 0.78);
     const lineMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3 });
     const line = new THREE.Mesh(lineGeo, lineMat);
     line.position.copy(mid);
@@ -248,145 +578,261 @@ class DubaiBoard3D {
     this.scene.add(line);
   }
 
+  // ── Tile Pedestals ────────────────────────────────────────────
   createTilePedestal(pos, node) {
     const group = new THREE.Group();
     group.position.copy(pos);
 
     const isStopTile = node.isStop;
-    const radius = isStopTile ? 2.0 : 1.6;
-    const discGeo = new THREE.CylinderGeometry(radius, radius + 0.2, isStopTile ? 0.8 : 0.5, 24);
+    const isFinish = node.type === 'finish';
+    const radius = isStopTile ? 2.1 : (isFinish ? 2.5 : 1.65);
+
+    const discGeo = new THREE.CylinderGeometry(radius, radius + 0.25, isStopTile ? 0.9 : 0.55, 24);
     const colorHex = parseInt((node.color || '#3b82f6').replace('#', '0x'), 16);
-    const discMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3, metalness: 0.5 });
+    const discMat = new THREE.MeshStandardMaterial({
+      color: colorHex,
+      roughness: 0.25,
+      metalness: 0.65
+    });
     const disc = new THREE.Mesh(discGeo, discMat);
-    disc.position.y = 0.25;
+    disc.position.y = 0.28;
     disc.castShadow = true;
     disc.receiveShadow = true;
     group.add(disc);
 
-    // STOP ring (red outer ring for stop tiles)
+    // Outer Glowing Ring for STOP & Finish
     if (isStopTile) {
-      const stopRingGeo = new THREE.TorusGeometry(radius + 0.3, 0.2, 12, 32);
-      const stopRingMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      const stopRingGeo = new THREE.TorusGeometry(radius + 0.35, 0.22, 12, 32);
+      const stopRingMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
       const stopRing = new THREE.Mesh(stopRingGeo, stopRingMat);
       stopRing.rotation.x = Math.PI / 2;
-      stopRing.position.y = 0.9;
+      stopRing.position.y = 1.0;
       group.add(stopRing);
     }
 
-    const ringGeo = new THREE.TorusGeometry(radius + 0.1, 0.12, 12, 24);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    // Inner Chrome Bezel
+    const ringGeo = new THREE.TorusGeometry(radius + 0.12, 0.12, 12, 24);
+    const ringMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.9, roughness: 0.1 });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.52;
+    ring.position.y = 0.58;
     group.add(ring);
 
-    const sprite = this.createTileSprite(node.icon || '📍', node.title, isStopTile);
-    sprite.position.set(0, isStopTile ? 2.8 : 2.2, 0);
+    // High-DPI Sprite for Tile Title & Icon
+    const sprite = this.createTileSprite(node.icon || '📍', node.title, isStopTile, node.type);
+    sprite.position.set(0, isStopTile ? 3.0 : 2.4, 0);
     group.add(sprite);
 
     this.scene.add(group);
     this.tileMeshes.push(group);
   }
 
-  createTileSprite(icon, title, isStop) {
+  createTileSprite(icon, title, isStop, type) {
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 128;
+    canvas.width = 300;
+    canvas.height = 150;
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = isStop ? 'rgba(180, 10, 10, 0.9)' : 'rgba(11, 19, 41, 0.88)';
-    ctx.strokeStyle = isStop ? '#ff4444' : '#ffffff';
-    ctx.lineWidth = isStop ? 8 : 5;
+    // Background Bubble
+    ctx.fillStyle = isStop ? 'rgba(185, 28, 28, 0.92)' : 'rgba(11, 19, 41, 0.9)';
+    ctx.strokeStyle = isStop ? '#f87171' : (type === 'payday' ? '#22c55e' : '#ffffff');
+    ctx.lineWidth = 6;
     ctx.beginPath();
-    ctx.roundRect(8, 8, 240, 112, 22);
+    ctx.roundRect(10, 10, 280, 130, 24);
     ctx.fill();
     ctx.stroke();
 
-    ctx.font = '38px Arial';
+    // Icon
+    ctx.font = '46px "Plus Jakarta Sans", Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(icon, 128, 55);
+    ctx.fillText(icon, 150, 64);
 
+    // Title
     ctx.fillStyle = '#f8fafc';
-    ctx.font = `bold ${isStop ? 20 : 18}px sans-serif`;
-    ctx.fillText(title.substring(0, 12), 128, 95);
+    ctx.font = `bold ${isStop ? 22 : 20}px "Plus Jakarta Sans", sans-serif`;
+    ctx.fillText(title.substring(0, 13), 150, 106);
 
     if (isStop) {
-      ctx.fillStyle = '#ff4444';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillText('● STOP', 128, 118);
+      ctx.fillStyle = '#fca5a5';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText('● STOP', 150, 130);
     }
 
     const texture = new THREE.CanvasTexture(canvas);
-    const spriteMat = new THREE.SpriteMaterial({ map: texture });
+    const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(isStop ? 3.8 : 3.2, isStop ? 1.9 : 1.6, 1);
+    sprite.scale.set(isStop ? 4.2 : 3.5, isStop ? 2.1 : 1.75, 1);
     return sprite;
   }
 
-  // ── Car creation ──────────────────────────────────────────
+  // ── 🏎️ Classic "Spiel des Lebens" Convertible Peg-Car ─────────
   create3DCar(player) {
     const carGroup = new THREE.Group();
     const colorHex = parseInt((player.character.color || '#3b82f6').replace('#', '0x'), 16);
 
-    const chassisGeo = new THREE.BoxGeometry(1.6, 0.5, 3.2);
-    const chassisMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.2, metalness: 0.8 });
+    // 1. Sleek Convertible Chassis
+    const chassisGeo = new THREE.BoxGeometry(1.7, 0.55, 3.4);
+    const chassisMat = new THREE.MeshStandardMaterial({
+      color: colorHex,
+      roughness: 0.18,
+      metalness: 0.85
+    });
     const chassis = new THREE.Mesh(chassisGeo, chassisMat);
-    chassis.position.y = 0.5;
+    chassis.position.y = 0.55;
     chassis.castShadow = true;
     carGroup.add(chassis);
 
-    const cabinGeo = new THREE.BoxGeometry(1.2, 0.55, 1.6);
-    const cabinMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.8 });
-    const cabin = new THREE.Mesh(cabinGeo, cabinMat);
-    cabin.position.set(0, 0.95, -0.2);
-    carGroup.add(cabin);
+    // 2. Interior Cockpit Tub
+    const tubGeo = new THREE.BoxGeometry(1.3, 0.35, 2.0);
+    const tubMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+    const tub = new THREE.Mesh(tubGeo, tubMat);
+    tub.position.set(0, 0.7, -0.1);
+    carGroup.add(tub);
 
-    const spoilerGeo = new THREE.BoxGeometry(1.5, 0.1, 0.4);
-    const spoiler = new THREE.Mesh(spoilerGeo, chassisMat);
-    spoiler.position.set(0, 0.95, 1.3);
-    carGroup.add(spoiler);
+    // 3. Transparent Windshield
+    const shieldGeo = new THREE.BoxGeometry(1.35, 0.45, 0.08);
+    const shieldMat = new THREE.MeshStandardMaterial({
+      color: 0x93c5fd,
+      roughness: 0.05,
+      metalness: 0.9,
+      transparent: true,
+      opacity: 0.65
+    });
+    const shield = new THREE.Mesh(shieldGeo, shieldMat);
+    shield.position.set(0, 1.05, -0.9);
+    shield.rotation.x = -Math.PI / 7;
+    carGroup.add(shield);
 
-    const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.25, 16);
-    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.9 });
-    const wheelPositions = [[-0.85,0.32,0.9],[0.85,0.32,0.9],[-0.85,0.32,-0.9],[0.85,0.32,-0.9]];
+    // 4. Wheels with Silver Rims
+    const wheelGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.26, 16);
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.9 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.95, roughness: 0.1 });
+    const wheelPositions = [
+      [-0.92, 0.34, 0.95],
+      [0.92, 0.34, 0.95],
+      [-0.92, 0.34, -0.95],
+      [0.92, 0.34, -0.95]
+    ];
     carGroup.wheels = [];
     wheelPositions.forEach(wp => {
-      const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-      wheel.rotation.z = Math.PI / 2;
-      wheel.position.set(...wp);
-      wheel.castShadow = true;
-      carGroup.add(wheel);
-      carGroup.wheels.push(wheel);
+      const wheelGroup = new THREE.Group();
+      wheelGroup.position.set(...wp);
+
+      const tire = new THREE.Mesh(wheelGeo, wheelMat);
+      tire.rotation.z = Math.PI / 2;
+      tire.castShadow = true;
+      wheelGroup.add(tire);
+
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.28, 12), rimMat);
+      rim.rotation.z = Math.PI / 2;
+      wheelGroup.add(rim);
+
+      carGroup.add(wheelGroup);
+      carGroup.wheels.push(wheelGroup);
     });
 
+    // 5. LED Headlights & Taillights
     const lightGeo = new THREE.BoxGeometry(0.3, 0.15, 0.1);
-    const lightMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-    [-0.5, 0.5].forEach(xOff => {
-      const light = new THREE.Mesh(lightGeo, lightMat);
-      light.position.set(xOff, 0.5, -1.62);
+    const headMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+    [-0.55, 0.55].forEach(x => {
+      const light = new THREE.Mesh(lightGeo, headMat);
+      light.position.set(x, 0.55, -1.72);
+      carGroup.add(light);
+    });
+    const tailMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+    [-0.55, 0.55].forEach(x => {
+      const light = new THREE.Mesh(lightGeo, tailMat);
+      light.position.set(x, 0.55, 1.72);
       carGroup.add(light);
     });
 
-    // Name badge
+    // 6. Figure Pegs (Spielfiguren!)
+    carGroup.pegsGroup = new THREE.Group();
+    carGroup.add(carGroup.pegsGroup);
+    this.updateCarPegs(carGroup, player);
+
+    // 7. Player Name Badge
     const nc = document.createElement('canvas');
-    nc.width = 256; nc.height = 80;
+    nc.width = 256; nc.height = 70;
     const nCtx = nc.getContext('2d');
     nCtx.fillStyle = player.character.color;
     nCtx.beginPath();
-    nCtx.roundRect(10, 10, 236, 60, 16);
+    nCtx.roundRect(10, 8, 236, 54, 18);
     nCtx.fill();
+    nCtx.strokeStyle = '#fff';
+    nCtx.lineWidth = 3;
+    nCtx.stroke();
     nCtx.fillStyle = '#fff';
-    nCtx.font = 'bold 26px sans-serif';
+    nCtx.font = 'bold 26px "Plus Jakarta Sans", sans-serif';
     nCtx.textAlign = 'center';
-    nCtx.fillText(`${player.character.icon} ${player.name}`, 128, 48);
+    nCtx.fillText(`${player.character.icon} ${player.name}`, 128, 44);
+
     const nameTex = new THREE.CanvasTexture(nc);
-    const nameSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTex }));
-    nameSprite.scale.set(2.8, 0.9, 1);
-    nameSprite.position.set(0, 2.6, 0);
+    const nameSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTex, depthTest: false }));
+    nameSprite.scale.set(3.2, 0.9, 1);
+    nameSprite.position.set(0, 2.7, 0);
     carGroup.add(nameSprite);
 
     this.scene.add(carGroup);
     return carGroup;
+  }
+
+  // Helper to create a cute Spiel des Lebens Peg figurine
+  createPeg(colorHex, scale = 1.0) {
+    const peg = new THREE.Group();
+    peg.scale.set(scale, scale, scale);
+
+    // Body
+    const bodyGeo = new THREE.CylinderGeometry(0.18, 0.26, 0.7, 16);
+    const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3, metalness: 0.4 });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.35;
+    body.castShadow = true;
+    peg.add(body);
+
+    // Head
+    const headGeo = new THREE.SphereGeometry(0.24, 16, 16);
+    const headMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.2, metalness: 0.3 });
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.y = 0.85;
+    head.castShadow = true;
+    peg.add(head);
+
+    return peg;
+  }
+
+  updateCarPegs(carGroup, player) {
+    if (!carGroup.pegsGroup) return;
+    // Clear old pegs
+    while (carGroup.pegsGroup.children.length > 0) {
+      carGroup.pegsGroup.remove(carGroup.pegsGroup.children[0]);
+    }
+
+    const pColor = parseInt((player.character.color || '#3b82f6').replace('#', '0x'), 16);
+    // 1. Driver Peg (Front-Left)
+    const driverPeg = this.createPeg(pColor, 1.0);
+    driverPeg.position.set(-0.32, 0.75, -0.2);
+    carGroup.pegsGroup.add(driverPeg);
+
+    // 2. Spouse Peg (Front-Right if married)
+    if (player.assets && player.assets.spouse) {
+      const spousePeg = this.createPeg(0xf43f5e, 1.0); // Pink/Red for spouse
+      spousePeg.position.set(0.32, 0.75, -0.2);
+      carGroup.pegsGroup.add(spousePeg);
+    }
+
+    // 3. Children Pegs (Back Seats)
+    const numKids = (player.assets && player.assets.children) ? Math.min(player.assets.children, 2) : 0;
+    if (numKids >= 1) {
+      const kid1 = this.createPeg(0x38bdf8, 0.75); // Light blue mini peg
+      kid1.position.set(-0.3, 0.75, 0.5);
+      carGroup.pegsGroup.add(kid1);
+    }
+    if (numKids >= 2) {
+      const kid2 = this.createPeg(0xfacc15, 0.75); // Yellow mini peg
+      kid2.position.set(0.3, 0.75, 0.5);
+      carGroup.pegsGroup.add(kid2);
+    }
   }
 
   updatePlayers(players) {
@@ -395,14 +841,16 @@ class DubaiBoard3D {
         this.cars[player.socketId] = this.create3DCar(player);
       }
       const car = this.cars[player.socketId];
+      this.updateCarPegs(car, player);
+
       const targetNode = this.node3DPositions.find(n => n.id === player.position) || this.node3DPositions[0];
       if (!car.isMoving) {
-        car.position.set(targetNode.pos.x, targetNode.pos.y + 0.3, targetNode.pos.z);
+        car.position.set(targetNode.pos.x, targetNode.pos.y + 0.32, targetNode.pos.z);
       }
     });
   }
 
-  // ── KEY: Full movement with STOP tiles, payday-on-pass, branch detection ──
+  // ── 🎬 Animated Car Movement with Cinematic Chase-Cam ──────────
   async animateCarMove(player, steps, stepCallback) {
     const car = this.cars[player.socketId];
     if (!car) return { done: true };
@@ -418,21 +866,21 @@ class DubaiBoard3D {
       const currentNode = BOARD_NODES.find(n => n.id === currentNodeId);
       if (!currentNode) break;
 
-      // STOP tile check: if we're NOT at the start and this tile is a STOP, stop here
+      // STOP tile check: if we're not at step 0 and tile is a STOP, halt here!
       if (s > 0 && currentNode.isStop) {
-        // We just landed on a stop tile, break and trigger its action
         if (stepCallback) stepCallback(player, currentNodeId, 'stop');
         stepsLeft = 0;
         break;
       }
 
-      // No more next nodes = end of board (finish)
+      // Finish reached
       if (!currentNode.next || currentNode.next.length === 0) {
         if (stepCallback) stepCallback(player, currentNodeId, 'finish');
+        this.spawnConfetti(car.position);
         break;
       }
 
-      // BRANCH: multiple next nodes → ask player to choose or use pre-selected decision path
+      // Branch: multiple paths ahead
       if (currentNode.next.length > 1) {
         let chosenNextId = null;
         stepsLeft = steps - s - 1;
@@ -445,12 +893,11 @@ class DubaiBoard3D {
         }
 
         if (chosenNextId !== null && chosenNextId !== undefined) {
-          // Continue movement on chosen path
           car.isMoving = true;
           currentNodeId = chosenNextId;
           player.position = currentNodeId;
           await this.moveCarTo(car, currentNodeId);
-          // Now continue movement from here
+
           if (stepsLeft > 0) {
             const subResult = await this.animateCarMove(player, stepsLeft, stepCallback);
             player.position = subResult.finalNodeId;
@@ -465,16 +912,15 @@ class DubaiBoard3D {
       const nextNodeId = currentNode.next[0];
       const nextNode = BOARD_NODES.find(n => n.id === nextNodeId);
 
-      // Move car to next node
+      // Move car along path
       await this.moveCarTo(car, nextNodeId);
       currentNodeId = nextNodeId;
       player.position = currentNodeId;
 
-      // Payday while passing (only if NOT the final step)
+      // Payday while passing over tile
       if (nextNode && nextNode.type === 'payday' && s < steps - 1) {
         if (stepCallback) stepCallback(player, currentNodeId, 'payday');
-        // Brief pause
-        await this.delay(400);
+        await this.delay(380);
       } else if (stepCallback) {
         stepCallback(player, currentNodeId, 'step');
       }
@@ -493,17 +939,30 @@ class DubaiBoard3D {
     if (!targetData) return;
 
     const startPos = car.position.clone();
-    const endPos = new THREE.Vector3(targetData.pos.x, targetData.pos.y + 0.3, targetData.pos.z);
+    const endPos = new THREE.Vector3(targetData.pos.x, targetData.pos.y + 0.32, targetData.pos.z);
 
-    const lookTarget = endPos.clone();
-    lookTarget.y = car.position.y;
-    car.lookAt(lookTarget);
+    // Calculate heading direction
+    const travelDir = new THREE.Vector3().subVectors(endPos, startPos).normalize();
+    if (travelDir.lengthSq() > 0.001) {
+      this.carHeading.copy(travelDir);
+      const lookTarget = endPos.clone();
+      lookTarget.y = car.position.y;
+      car.lookAt(lookTarget);
+    }
 
-    // Update camera target
-    this.targetCameraPos.set(endPos.x, endPos.y + 16, endPos.z + 20);
-    this.targetCameraLookAt.copy(endPos);
+    // Dynamic Third-Person Chase Cam behind the car!
+    this.targetCameraPos.set(
+      endPos.x - this.carHeading.x * 15,
+      endPos.y + 9.5,
+      endPos.z - this.carHeading.z * 15
+    );
+    this.targetCameraLookAt.set(
+      endPos.x + this.carHeading.x * 5,
+      endPos.y + 1.2,
+      endPos.z + this.carHeading.z * 5
+    );
 
-    const duration = 500;
+    const duration = 480;
     const startTime = performance.now();
 
     await new Promise(resolve => {
@@ -511,9 +970,21 @@ class DubaiBoard3D {
         const elapsed = now - startTime;
         const progress = Math.min(elapsed / duration, 1);
         const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
         car.position.lerpVectors(startPos, endPos, ease);
-        car.position.y = startPos.y + Math.sin(progress * Math.PI) * 0.6;
-        if (car.wheels) car.wheels.forEach(w => w.rotation.x += 0.28);
+        // Playful bounce during driving
+        car.position.y = startPos.y + Math.sin(progress * Math.PI) * 0.55;
+
+        // Spin wheels
+        if (car.wheels) {
+          car.wheels.forEach(w => {
+            w.children[0].rotation.x += 0.32;
+          });
+        }
+
+        // Slight bank into curves
+        car.rotation.z = Math.sin(progress * Math.PI * 2) * 0.05;
+
         if (progress < 1) requestAnimationFrame(anim);
         else resolve();
       };
@@ -525,39 +996,18 @@ class DubaiBoard3D {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  // ── 🎥 Camera System & Views ──────────────────────────────────
   resetCamera() {
     setTimeout(() => {
       this.isTrackingCar = false;
-      this.targetCameraPos.set(0, 55, 75);
+      this.targetCameraPos.set(0, 52, 68);
       this.targetCameraLookAt.set(0, 0, 0);
-    }, 2000);
+    }, 1800);
   }
 
-  // ── Celebration confetti ────────────────────────────────────
-  spawnConfetti(position) {
-    const colors = [0xec4899, 0xf59e0b, 0x22c55e, 0x3b82f6, 0xa855f7, 0xef4444];
-    for (let i = 0; i < 80; i++) {
-      const geo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
-      const mat = new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
-      const piece = new THREE.Mesh(geo, mat);
-      piece.position.set(
-        position.x + (Math.random() - 0.5) * 4,
-        position.y + Math.random() * 6,
-        position.z + (Math.random() - 0.5) * 4
-      );
-      piece.velocity = new THREE.Vector3((Math.random() - 0.5) * 0.1, Math.random() * 0.15 + 0.05, (Math.random() - 0.5) * 0.1);
-      piece.userData.isConfetti = true;
-      this.scene.add(piece);
-
-      // Remove after 3 seconds
-      setTimeout(() => this.scene.remove(piece), 3000);
-    }
-  }
-
-  // ── Camera modes ────────────────────────────────────────────
   cameraOverview() {
     this.isTrackingCar = false;
-    this.targetCameraPos.set(0, 70, 90);
+    this.targetCameraPos.set(0, 68, 86);
     this.targetCameraLookAt.set(0, 0, 0);
   }
 
@@ -570,31 +1020,74 @@ class DubaiBoard3D {
     const nodeData = this.node3DPositions.find(n => n.id === nodeId);
     if (!nodeData) return;
     this.isTrackingCar = false;
-    this.targetCameraPos.set(nodeData.pos.x, nodeData.pos.y + 18, nodeData.pos.z + 22);
+    this.targetCameraPos.set(nodeData.pos.x, nodeData.pos.y + 20, nodeData.pos.z + 26);
     this.targetCameraLookAt.copy(nodeData.pos);
   }
 
-  // ── Animation loop ──────────────────────────────────────────
+  // ── 🎊 Celebration Confetti ───────────────────────────────────
+  spawnConfetti(position) {
+    const colors = [0xf59e0b, 0xec4899, 0x22c55e, 0x3b82f6, 0xa855f7, 0xef4444, 0x06b6d4];
+    for (let i = 0; i < 90; i++) {
+      const geo = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+      const mat = new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
+      const piece = new THREE.Mesh(geo, mat);
+      piece.position.set(
+        position.x + (Math.random() - 0.5) * 5,
+        position.y + Math.random() * 7 + 1,
+        position.z + (Math.random() - 0.5) * 5
+      );
+      piece.velocity = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.12,
+        Math.random() * 0.18 + 0.08,
+        (Math.random() - 0.5) * 0.12
+      );
+      piece.userData.isConfetti = true;
+      this.scene.add(piece);
+
+      setTimeout(() => this.scene.remove(piece), 3200);
+    }
+  }
+
+  // ── 🔄 Render Loop ────────────────────────────────────────────
   animate() {
     requestAnimationFrame(() => this.animate());
 
+    // Continuous dynamic camera lerp
     if (this.isTrackingCar && this.trackedCar) {
       const p = this.trackedCar.position;
-      this.targetCameraPos.set(p.x, p.y + 16, p.z + 20);
-      this.targetCameraLookAt.copy(p);
+      this.targetCameraPos.set(
+        p.x - this.carHeading.x * 15,
+        p.y + 9.5,
+        p.z - this.carHeading.z * 15
+      );
+      this.targetCameraLookAt.set(
+        p.x + this.carHeading.x * 5,
+        p.y + 1.2,
+        p.z + this.carHeading.z * 5
+      );
     }
 
-    this.camera.position.lerp(this.targetCameraPos, 0.04);
-    this.currentCameraLookAt.lerp(this.targetCameraLookAt, 0.05);
+    this.camera.position.lerp(this.targetCameraPos, 0.045);
+    this.currentCameraLookAt.lerp(this.targetCameraLookAt, 0.055);
     this.camera.lookAt(this.currentCameraLookAt);
 
-    // Update confetti
+    // Subtle water shimmer
+    if (this.waterMesh) {
+      this.waterMesh.rotation.z += 0.0003;
+    }
+
+    // Animated objects (e.g. rotating Bitcoin coin)
+    this.animatedObjects.forEach(item => {
+      if (item.type === 'rotateY') item.obj.rotation.y += item.speed;
+    });
+
+    // Update confetti particles
     this.scene.children.forEach(obj => {
       if (obj.userData && obj.userData.isConfetti && obj.velocity) {
         obj.position.add(obj.velocity);
-        obj.velocity.y -= 0.004;
-        obj.rotation.x += 0.05;
-        obj.rotation.z += 0.03;
+        obj.velocity.y -= 0.005;
+        obj.rotation.x += 0.06;
+        obj.rotation.z += 0.04;
       }
     });
 

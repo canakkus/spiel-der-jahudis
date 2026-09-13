@@ -199,7 +199,7 @@ socket.on('game_started', ({ players, currentTurnPlayer }) => {
 function setTurnText(player) {
   if (!player || !turnText) return;
   const isTv = true; // host always shows instruction
-  turnText.innerHTML = `🎮 <span style="color:${player.character.color}; font-weight:900;">${player.name}</span> ist dran — Handy: SPIN drücken!`;
+  turnText.innerHTML = `🎮 <span style="color:${player.character.color}; font-weight:900;">${player.name}</span> ist dran — Handy: Rad mit Schwung drehen!`;
 }
 
 // Spacebar = quick spin for testing
@@ -211,7 +211,7 @@ window.addEventListener('keydown', e => {
 });
 
 // ── Wheel spin ─────────────────────────────────────────────────
-socket.on('wheel_spun', ({ player, spinValue }) => {
+socket.on('wheel_spun', ({ player, spinValue, velocity = 1 }) => {
   activePlayer = player;
   wheelPlayerName.textContent = `${player.name} dreht das Rad...`;
   wheelOverlay.classList.add('active');
@@ -219,8 +219,11 @@ socket.on('wheel_spun', ({ player, spinValue }) => {
   const sectorIndex = WHEEL_SECTORS.findIndex(s => s.num === spinValue);
   const arc = (2 * Math.PI) / WHEEL_SECTORS.length;
   const targetAngle = (3 * Math.PI / 2) - (sectorIndex * arc + arc / 2);
-  const finalAngle = 4 * 2 * Math.PI + targetAngle;
-  const duration = 2800;
+  
+  // Dynamic rotations and duration based on player swipe velocity
+  const rotations = Math.min(6, Math.max(3, Math.round(velocity * 1.2)));
+  const duration = Math.min(3400, Math.max(2200, 2000 + velocity * 220));
+  const finalAngle = rotations * 2 * Math.PI + targetAngle;
   const startTime = performance.now();
   let lastTick = 0;
 

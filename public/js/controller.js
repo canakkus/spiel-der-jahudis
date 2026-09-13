@@ -45,7 +45,11 @@ const statHappiness   = document.getElementById('stat-happiness');
 const statKnowledge   = document.getElementById('stat-knowledge');
 const assetsRow       = document.getElementById('assets-row');
 const turnIndicator   = document.getElementById('turn-indicator');
-const btnSpin         = document.getElementById('btn-spin');
+const wheelContainer  = document.getElementById('wheel-container');
+const wheelCanvas     = document.getElementById('controller-wheel-canvas');
+const wheelPointer    = document.getElementById('wheel-pointer');
+const wheelHint       = document.getElementById('wheel-hint');
+const wheelCenterCap  = document.getElementById('wheel-center-cap');
 const decIcon         = document.getElementById('dec-icon');
 const decTitle        = document.getElementById('dec-title');
 const decDesc         = document.getElementById('dec-desc');
@@ -196,22 +200,309 @@ function updateStats() {
   }
 }
 
+// ── INTERACTIVE SWIPE WHEEL ENGINE (Mobile & Desktop) ───────────
+const CONTROLLER_WHEEL_SECTORS = [
+  { num: 1,  color: '#ef4444' }, // Red
+  { num: 2,  color: '#f97316' }, // Orange
+  { num: 3,  color: '#f59e0b' }, // Amber
+  { num: 4,  color: '#10b981' }, // Green
+  { num: 5,  color: '#06b6d4' }, // Cyan
+  { num: 6,  color: '#3b82f6' }, // Blue
+  { num: 7,  color: '#6366f1' }, // Indigo
+  { num: 8,  color: '#a855f7' }, // Purple
+  { num: 9,  color: '#ec4899' }, // Pink
+  { num: 10, color: '#eab308' }, // Gold
+];
+
+let wheelAngle = 0;
+let wheelAngularVelocity = 0;
+let isWheelDragging = false;
+let isWheelSpinning = false;
+let isMyTurn = false;
+let wheelLastAngle = 0;
+let wheelLastTime = 0;
+let wheelDragPoints = [];
+let lastTickedIndex = -1;
+
+function drawControllerWheel(angle = 0) {
+  if (!wheelCanvas) return;
+  const ctx = wheelCanvas.getContext('2d');
+  const size = wheelCanvas.width; // 520
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = cx - 22;
+  const numSectors = CONTROLLER_WHEEL_SECTORS.length;
+  const arc = (2 * Math.PI) / numSectors;
+
+  ctx.clearRect(0, 0, size, size);
+
+  // Outer rim shadow & gradient
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius + 14, 0, Math.PI * 2);
+  const outerGrad = ctx.createRadialGradient(cx, cy, radius - 10, cx, cy, radius + 16);
+  outerGrad.addColorStop(0, '#f59e0b');
+  outerGrad.addColorStop(0.6, '#b45309');
+  outerGrad.addColorStop(1, '#78350f');
+  ctx.fillStyle = outerGrad;
+  ctx.fill();
+
+  // 20 golden studs
+  for (let i = 0; i < 20; i++) {
+    const studAngle = (i / 20) * Math.PI * 2 + angle;
+    const sx = cx + Math.cos(studAngle) * (radius + 7);
+    const sy = cy + Math.sin(studAngle) * (radius + 7);
+    ctx.beginPath();
+    ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fef08a';
+    ctx.fill();
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 10 sectors
+  CONTROLLER_WHEEL_SECTORS.forEach((sec, i) => {
+    const start = angle + i * arc;
+    const end = start + arc;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, radius, start, end);
+    ctx.closePath();
+
+    ctx.fillStyle = sec.color;
+    ctx.fill();
+    ctx.strokeStyle = '#0b1329';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // 3D sector gradient overlay
+    const grad = ctx.createRadialGradient(cx, cy, radius * 0.2, cx, cy, radius);
+    grad.addColorStop(0, 'rgba(255,255,255,0.22)');
+    grad.addColorStop(0.75, 'rgba(0,0,0,0.05)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Sector Number
+    const secMid = start + arc / 2;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(secMid);
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(0,0,0,0.85)';
+    ctx.shadowBlur = 8;
+    ctx.font = 'bold 44px "Plus Jakarta Sans", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(sec.num, radius * 0.68, 0);
+    ctx.restore();
+  });
+
+  // Inner ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.32, 0, Math.PI * 2);
+  ctx.fillStyle = '#0b1329';
+  ctx.fill();
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+}
+
+function getAngleFromEvent(e) {
+  if (!wheelCanvas) return 0;
+  const rect = wheelCanvas.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
+  const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
+  return Math.atan2(clientY - cy, clientX - cx);
+}
+
+function normalizeAngle(a) {
+  return ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+}
+
+function getSelectedSector(angle) {
+  // Top pointer is at -PI/2 (or 3*PI/2)
+  const arc = (Math.PI * 2) / CONTROLLER_WHEEL_SECTORS.length;
+  const pointerAngle = normalizeAngle(1.5 * Math.PI - angle);
+  const index = Math.floor(pointerAngle / arc) % CONTROLLER_WHEEL_SECTORS.length;
+  return CONTROLLER_WHEEL_SECTORS[index];
+}
+
+function triggerWheelTick() {
+  if (wheelPointer) {
+    wheelPointer.classList.add('tick');
+    setTimeout(() => wheelPointer.classList.remove('tick'), 70);
+  }
+  if (navigator.vibrate) {
+    try { navigator.vibrate(12); } catch (_) {}
+  }
+}
+
+function onWheelPointerDown(e) {
+  if (!isMyTurn || isWheelSpinning) return;
+  if (e.touches && e.touches.length > 1) return;
+  if (e.preventDefault) e.preventDefault();
+
+  isWheelDragging = true;
+  wheelAngularVelocity = 0;
+  wheelLastAngle = getAngleFromEvent(e);
+  wheelLastTime = performance.now();
+  wheelDragPoints = [{ angle: wheelLastAngle, time: wheelLastTime }];
+  if (wheelHint) {
+    wheelHint.textContent = '💨 Ziehe und lasse mit Schwung los!';
+  }
+}
+
+function onWheelPointerMove(e) {
+  if (!isWheelDragging || !isMyTurn || isWheelSpinning) return;
+  if (e.preventDefault) e.preventDefault();
+
+  const currentTouchAngle = getAngleFromEvent(e);
+  const now = performance.now();
+
+  let delta = currentTouchAngle - wheelLastAngle;
+  if (delta > Math.PI) delta -= Math.PI * 2;
+  if (delta < -Math.PI) delta += Math.PI * 2;
+
+  wheelAngle += delta;
+  wheelLastAngle = currentTouchAngle;
+
+  wheelDragPoints.push({ angle: wheelAngle, time: now });
+  if (wheelDragPoints.length > 6) wheelDragPoints.shift();
+
+  drawControllerWheel(wheelAngle);
+
+  const sector = getSelectedSector(wheelAngle);
+  if (sector.num !== lastTickedIndex) {
+    lastTickedIndex = sector.num;
+    triggerWheelTick();
+  }
+}
+
+function onWheelPointerUp() {
+  if (!isWheelDragging || !isMyTurn || isWheelSpinning) return;
+  isWheelDragging = false;
+
+  const now = performance.now();
+  const recent = wheelDragPoints.filter(p => now - p.time < 160);
+  let computedVelocity = 0;
+  if (recent.length >= 2) {
+    const first = recent[0];
+    const last = recent[recent.length - 1];
+    const dt = (last.time - first.time) || 16;
+    computedVelocity = (last.angle - first.angle) / (dt / 16.666);
+  }
+
+  const minSpeed = 0.28 + Math.random() * 0.12;
+  if (Math.abs(computedVelocity) < 0.1) {
+    computedVelocity = (Math.random() > 0.5 ? 1 : -1) * minSpeed;
+  } else {
+    computedVelocity = Math.max(-0.65, Math.min(0.65, computedVelocity));
+    if (Math.abs(computedVelocity) < 0.2) {
+      computedVelocity = Math.sign(computedVelocity) * minSpeed;
+    }
+  }
+
+  launchPhysicsSpin(computedVelocity);
+}
+
+function launchPhysicsSpin(initialVelocity) {
+  isWheelSpinning = true;
+  wheelAngularVelocity = initialVelocity;
+  if (wheelContainer) wheelContainer.classList.add('disabled');
+  if (wheelHint) {
+    wheelHint.textContent = '🎰 Rad dreht sich...';
+    wheelHint.classList.add('active');
+  }
+
+  const friction = 0.983;
+  let lastFrameTime = performance.now();
+
+  function step(now) {
+    const dt = Math.min((now - lastFrameTime) / 16.666, 2.5);
+    lastFrameTime = now;
+
+    wheelAngle += wheelAngularVelocity * dt;
+    wheelAngularVelocity *= Math.pow(friction, dt);
+
+    drawControllerWheel(wheelAngle);
+
+    const sector = getSelectedSector(wheelAngle);
+    if (sector.num !== lastTickedIndex) {
+      lastTickedIndex = sector.num;
+      triggerWheelTick();
+    }
+
+    if (Math.abs(wheelAngularVelocity) > 0.0015) {
+      requestAnimationFrame(step);
+    } else {
+      wheelAngularVelocity = 0;
+      isWheelSpinning = false;
+      const finalSector = getSelectedSector(wheelAngle);
+      
+      if (navigator.vibrate) {
+        try { navigator.vibrate([40, 40, 100]); } catch (_) {}
+      }
+
+      if (wheelHint) {
+        wheelHint.textContent = `🎉 Du hast eine ${finalSector.num} gedreht!`;
+        wheelHint.classList.remove('active');
+      }
+
+      const spinSpeed = Math.abs(initialVelocity) * 10;
+      socket.emit('player_spin_wheel', {
+        roomCode: currentRoomCode,
+        spinValue: finalSector.num,
+        velocity: spinSpeed
+      });
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+if (wheelContainer) {
+  wheelContainer.addEventListener('touchstart', onWheelPointerDown, { passive: false });
+  window.addEventListener('touchmove', onWheelPointerMove, { passive: false });
+  window.addEventListener('touchend', onWheelPointerUp);
+  window.addEventListener('touchcancel', onWheelPointerUp);
+
+  wheelContainer.addEventListener('mousedown', onWheelPointerDown);
+  window.addEventListener('mousemove', onWheelPointerMove);
+  window.addEventListener('mouseup', onWheelPointerUp);
+}
+
+drawControllerWheel(0);
+
 function updateTurnIndicator(currentTurnPlayer) {
   if (!currentTurnPlayer || !myPlayer) return;
   const isMe = currentTurnPlayer.socketId === myPlayer.socketId;
-  turnIndicator.textContent = isMe ? '🎯 Du bist dran! Drück SPIN!' : `⏳ ${currentTurnPlayer.name} ist dran...`;
+  isMyTurn = isMe;
+  
+  turnIndicator.textContent = isMe ? '🎯 Du bist dran!' : `⏳ ${currentTurnPlayer.name} ist dran...`;
   turnIndicator.className = 'turn-indicator ' + (isMe ? 'my-turn' : '');
-  btnSpin.disabled = !isMe;
+  
+  if (wheelContainer) {
+    if (isMe && !isWheelSpinning) {
+      wheelContainer.classList.remove('disabled');
+      if (wheelHint) {
+        wheelHint.textContent = '👆 Swipe das Rad mit Schwung!';
+        wheelHint.classList.add('active');
+      }
+    } else {
+      wheelContainer.classList.add('disabled');
+      if (wheelHint && !isWheelSpinning) {
+        wheelHint.textContent = 'Warte auf deinen Zug...';
+        wheelHint.classList.remove('active');
+      }
+    }
+  }
   if (isMe && navigator.vibrate) navigator.vibrate([100, 50, 200]);
 }
-
-// ── SPIN ───────────────────────────────────────────────────────
-btnSpin && btnSpin.addEventListener('click', () => {
-  if (!btnSpin.disabled) {
-    btnSpin.disabled = true;
-    socket.emit('player_spin_wheel', { roomCode: currentRoomCode });
-  }
-});
 
 // ── TURN CHANGES ───────────────────────────────────────────────
 socket.on('turn_changed', ({ currentTurnPlayer, players }) => {

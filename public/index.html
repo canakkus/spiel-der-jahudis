@@ -35,15 +35,62 @@
     .btn { width: 100%; padding: 16px; border: none; border-radius: 16px; font-size: 1rem; font-weight: 900; cursor: pointer; transition: all 0.2s; font-family: inherit; margin-top: 8px; }
     .btn-primary { background: linear-gradient(135deg, var(--blue), #6366f1); color: #fff; }
     .btn-primary:active { transform: scale(0.97); }
-    .btn-spin {
-      background: linear-gradient(135deg, var(--gold), var(--pink));
-      color: #fff; font-size: 1.6rem; padding: 28px; border-radius: 50%; width: 180px; height: 180px;
-      border: none; cursor: pointer; font-family: inherit; font-weight: 900;
-      box-shadow: 0 0 60px rgba(245,158,11,0.5); transition: all 0.15s; display: block; margin: 20px auto;
-      align-self: center;
+    
+    /* Interactive Glücksrad on Controller */
+    .wheel-interactive-container {
+      position: relative;
+      width: 260px;
+      height: 260px;
+      margin: 16px auto 10px;
+      touch-action: none;
+      user-select: none;
+      cursor: grab;
     }
-    .btn-spin:active { transform: scale(0.93); }
-    .btn-spin:disabled { background: #334155; box-shadow: none; cursor: not-allowed; color: #64748b; }
+    .wheel-interactive-container:active { cursor: grabbing; }
+    .wheel-interactive-container.disabled { opacity: 0.5; pointer-events: none; }
+    .wheel-pointer {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 26px;
+      color: var(--gold);
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.8));
+      z-index: 20;
+      transition: transform 0.08s ease-out;
+      pointer-events: none;
+    }
+    .wheel-pointer.tick { transform: translateX(-50%) translateY(-4px) rotate(10deg); }
+    #controller-wheel-canvas {
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      box-shadow: 0 0 45px rgba(245,158,11,0.25), 0 8px 32px rgba(0,0,0,0.6);
+      display: block;
+    }
+    .wheel-center-cap {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #1e293b 0%, #0b1329 100%);
+      border: 3px solid var(--gold);
+      box-shadow: 0 0 25px rgba(245,158,11,0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .wheel-cap-icon { font-size: 1.4rem; line-height: 1; }
+    .wheel-cap-text { font-size: 11px; font-weight: 900; color: var(--gold); letter-spacing: 1px; margin-top: 2px; }
+    .wheel-hint { text-align: center; font-size: 13px; font-weight: 700; color: #94a3b8; min-height: 20px; margin-bottom: 4px; }
+    .wheel-hint.active { color: var(--gold); animation: pulse 1.5s infinite; }
+
     .btn-option { background: var(--surface); border: 2px solid var(--border); color: #f8fafc; text-align: left; padding: 18px; border-radius: 16px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; display: block; width: 100%; margin-bottom: 12px; transition: all 0.2s; }
     .btn-option:active { background: rgba(255,255,255,0.12); }
     .btn-option.option-a { border-color: var(--blue); }
@@ -193,8 +240,16 @@
   </div>
   <div class="assets-row" id="assets-row"></div>
   <div class="turn-indicator" id="turn-indicator">Warte auf deinen Zug...</div>
-  <button class="btn-spin" id="btn-spin" disabled>🎰<br>SPIN</button>
-  <div style="text-align:center; font-size:12px; color:#475569; margin-top:8px;">Warte auf deinen Zug</div>
+  
+  <div class="wheel-interactive-container disabled" id="wheel-container">
+    <div class="wheel-pointer" id="wheel-pointer">▼</div>
+    <canvas id="controller-wheel-canvas" width="520" height="520"></canvas>
+    <div class="wheel-center-cap" id="wheel-center-cap">
+      <span class="wheel-cap-icon">✨</span>
+      <span class="wheel-cap-text">SWIPE</span>
+    </div>
+  </div>
+  <div class="wheel-hint" id="wheel-hint">Warte auf deinen Zug...</div>
 
   <div class="soundboard-section">
     <div class="soundboard-title">🔊 SOUNDBOARD REAKTIONEN</div>

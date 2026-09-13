@@ -291,16 +291,21 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('player_spin_wheel', ({ roomCode }) => {
+  socket.on('player_spin_wheel', ({ roomCode, spinValue: clientSpin, velocity: clientVel } = {}) => {
     const room = rooms[roomCode];
     if (!room || room.state !== 'PLAYING') return;
     const currentPlayer = room.getCurrentPlayer();
-    if (!currentPlayer || currentPlayer.socketId !== socket.id) return;
+    if (!currentPlayer || (currentPlayer.socketId !== socket.id && room.hostSocketId !== socket.id)) return;
 
-    const spinValue = Math.floor(Math.random() * 10) + 1;
+    let spinValue = parseInt(clientSpin, 10);
+    if (isNaN(spinValue) || spinValue < 1 || spinValue > 10) {
+      spinValue = Math.floor(Math.random() * 10) + 1;
+    }
+    const velocity = (typeof clientVel === 'number' && clientVel > 0) ? Math.min(clientVel, 10) : 1;
+
     room.state = 'SPINNING';
-    io.to(roomCode).emit('wheel_spun', { player: currentPlayer, spinValue });
-    console.log(`[SPIN] ${currentPlayer.name}: ${spinValue}`);
+    io.to(roomCode).emit('wheel_spun', { player: currentPlayer, spinValue, velocity });
+    console.log(`[SPIN] ${currentPlayer.name}: ${spinValue} (vel: ${velocity.toFixed(2)})`);
   });
 
   // Player passed over a payday tile while moving
