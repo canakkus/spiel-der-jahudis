@@ -693,8 +693,9 @@ class DubaiBoard3D {
       metalness: 0.25
     });
     const road = new THREE.Mesh(roadGeo, roadMat);
+    const yOffset = Math.random() * 0.005;
     road.position.copy(mid);
-    road.position.y = p1.y - 0.06;
+    road.position.y = p1.y - 0.06 + yOffset;
     const lookTarget = p2.clone();
     lookTarget.y = road.position.y;
     road.lookAt(lookTarget);
@@ -708,7 +709,7 @@ class DubaiBoard3D {
 
     const leftCurb = new THREE.Mesh(curbGeo, curbMat);
     leftCurb.position.copy(mid);
-    leftCurb.position.y = p1.y - 0.02;
+    leftCurb.position.y = p1.y - 0.02 + yOffset;
     leftCurb.lookAt(lookTarget);
     leftCurb.translateX(-roadWidth / 2);
     leftCurb.castShadow = true;
@@ -716,7 +717,7 @@ class DubaiBoard3D {
 
     const rightCurb = new THREE.Mesh(curbGeo, curbMat);
     rightCurb.position.copy(mid);
-    rightCurb.position.y = p1.y - 0.02;
+    rightCurb.position.y = p1.y - 0.02 + yOffset;
     rightCurb.lookAt(lookTarget);
     rightCurb.translateX(roadWidth / 2);
     rightCurb.castShadow = true;
@@ -728,14 +729,14 @@ class DubaiBoard3D {
 
     const leftEdge = new THREE.Mesh(edgeGeo, edgeMat);
     leftEdge.position.copy(mid);
-    leftEdge.position.y = p1.y - 0.04;
+    leftEdge.position.y = p1.y - 0.04 + yOffset;
     leftEdge.lookAt(lookTarget);
     leftEdge.translateX(-roadWidth / 2 + 0.34);
     this.scene.add(leftEdge);
 
     const rightEdge = new THREE.Mesh(edgeGeo, edgeMat);
     rightEdge.position.copy(mid);
-    rightEdge.position.y = p1.y - 0.04;
+    rightEdge.position.y = p1.y - 0.04 + yOffset;
     rightEdge.lookAt(lookTarget);
     rightEdge.translateX(roadWidth / 2 - 0.34);
     this.scene.add(rightEdge);
@@ -745,7 +746,7 @@ class DubaiBoard3D {
     const lineMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3 });
     const line = new THREE.Mesh(lineGeo, lineMat);
     line.position.copy(mid);
-    line.position.y = p1.y - 0.04;
+    line.position.y = p1.y - 0.04 + yOffset;
     line.lookAt(lookTarget);
     this.scene.add(line);
   }
@@ -842,19 +843,19 @@ class DubaiBoard3D {
     ctx.stroke();
 
     // Large Crisp Icon
-    ctx.font = '86px "Plus Jakarta Sans", Arial, sans-serif';
+    ctx.font = '86px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(icon, 300, 105);
 
     // Bold Title
     ctx.fillStyle = '#ffffff';
-    ctx.font = `900 ${isStop ? 40 : 36}px "Plus Jakarta Sans", sans-serif`;
+    ctx.font = `800 ${isStop ? 40 : 36}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif`;
     ctx.fillText(title.substring(0, 14), 300, 195);
 
     if (isStop) {
-      ctx.fillStyle = '#fef08a';
-      ctx.font = '900 24px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = '#ef4444';
+      ctx.font = '800 24px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif';
       ctx.fillText('★ STOP DECISION ★', 300, 246);
     }
 
@@ -964,7 +965,7 @@ class DubaiBoard3D {
     nCtx.lineWidth = 3;
     nCtx.stroke();
     nCtx.fillStyle = '#fff';
-    nCtx.font = 'bold 26px "Plus Jakarta Sans", sans-serif';
+    nCtx.font = 'bold 26px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif';
     nCtx.textAlign = 'center';
     nCtx.fillText(`${player.character.icon} ${player.name}`, 128, 44);
 
@@ -985,7 +986,7 @@ class DubaiBoard3D {
 
     // Body
     const bodyGeo = new THREE.CylinderGeometry(0.18, 0.26, 0.7, 16);
-    const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3, metalness: 0.4 });
+    const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.15, metalness: 0.1 });
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     body.position.y = 0.35;
     body.castShadow = true;
@@ -993,7 +994,7 @@ class DubaiBoard3D {
 
     // Head
     const headGeo = new THREE.SphereGeometry(0.24, 16, 16);
-    const headMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.2, metalness: 0.3 });
+    const headMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.15, metalness: 0.1 });
     const head = new THREE.Mesh(headGeo, headMat);
     head.position.y = 0.85;
     head.castShadow = true;

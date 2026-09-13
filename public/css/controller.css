@@ -1,14 +1,16 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --bg-dark: #090d1a;
-  --bg-card: rgba(22, 32, 60, 0.9);
-  --accent-gold: #f59e0b;
-  --accent-pink: #ec4899;
-  --accent-green: #10b981;
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --border-glass: rgba(255, 255, 255, 0.12);
+  --bg-dark: #000000;
+  --bg-card: rgba(28, 28, 30, 0.75);
+  --accent-gold: #FF9F0A;
+  --accent-pink: #FF375F;
+  --accent-green: #32D74B;
+  --text-main: #FFFFFF;
+  --text-muted: #EBEBF5;
+  --border-glass: rgba(255, 255, 255, 0.1);
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.2);
 }
 
 * {
@@ -20,8 +22,9 @@
 }
 
 body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  background: radial-gradient(circle at top, #1e1b4b, #090d1a);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: var(--bg-dark);
   color: var(--text-main);
   min-height: 100vh;
   display: flex;
@@ -53,11 +56,10 @@ body {
 
 .app-title {
   text-align: center;
-  font-size: 26px;
-  font-weight: 900;
-  background: linear-gradient(135deg, #f59e0b, #ec4899);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.5px;
 }
 
 .input-group {
@@ -142,15 +144,15 @@ body {
 }
 
 .btn-join {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background: var(--accent-gold);
   color: white;
   border: none;
-  font-size: 20px;
-  font-weight: 900;
-  padding: 18px;
-  border-radius: 16px;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 16px;
+  border-radius: 14px;
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.4);
+  box-shadow: var(--shadow-sm);
   transition: all 0.2s ease;
   margin-top: 10px;
 }
@@ -203,18 +205,18 @@ body {
   width: 220px;
   height: 220px;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #f59e0b, #b45309);
-  border: 6px solid #fef3c7;
+  background: var(--accent-gold);
+  border: none;
   color: white;
-  font-size: 28px;
-  font-weight: 900;
+  font-size: 24px;
+  font-weight: 700;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  box-shadow: 0 15px 40px rgba(245, 158, 11, 0.5), inset 0 -6px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
   animation: pulseSpin 2s infinite ease-in-out;
   transition: transform 0.1s;
 }
@@ -242,9 +244,10 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(11, 19, 41, 0.95);
-  backdrop-filter: blur(16px);
-  border-top: 1px solid var(--border-glass);
+  background: rgba(28, 28, 30, 0.4);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-top: 0.5px solid var(--border-glass);
   padding: 10px 16px 14px;
   display: flex;
   flex-direction: column;
@@ -298,8 +301,8 @@ body {
 }
 
 @keyframes pulseSpin {
-  0%, 100% { transform: scale(1); box-shadow: 0 15px 40px rgba(245, 158, 11, 0.5); }
-  50% { transform: scale(1.05); box-shadow: 0 20px 50px rgba(245, 158, 11, 0.8); }
+  0%, 100% { transform: scale(1); box-shadow: var(--shadow-sm); }
+  50% { transform: scale(1.05); box-shadow: var(--shadow-md); }
 }
 
 @keyframes bounce {

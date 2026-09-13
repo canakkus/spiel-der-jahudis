@@ -114,7 +114,7 @@ function drawWheel(angle) {
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = 'rgba(0,0,0,0.85)';
     ctx.shadowBlur = 8;
-    ctx.font = '900 36px "Plus Jakarta Sans", sans-serif';
+    ctx.font = '800 36px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(sec.num, r * 0.68, 0);
