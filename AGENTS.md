@@ -1,44 +1,55 @@
-# Spiel der Jahudis - Agentic Documentation
+# 🎲 Spiel der Jahudis - AI Agent Context & Architecture
 
-This file serves as the definitive architecture and context guide for any autonomous agent or LLM working on **"Spiel der Jahudis"**.
+This document serves as the **Single Source of Truth** for any autonomous AI Agent or LLM working on **"Spiel der Jahudis"**. Always read this file before modifying the codebase to understand the architecture, game loop, and current state.
 
-## 🏗 Architecture Overview
-This is a multiplayer web game structured around a **Host-Screen (TV/PC)** and **Smartphone-Controllers (Clients)**.
-- **Backend:** Node.js + Express + Socket.IO (`server.js`). Handles all state transitions, financial logic, loops, and inventory.
-- **Frontend (Host):** Three.js (`board3D.js`), displaying the physical 3D board, the Game of Life-like landscape, models, the 3D spinning wheel, and car tokens.
-- **Frontend (Controller):** HTML/JS (`controller.js`, `index.html`) acting as a joypad. Includes interactive swipe-to-spin mechanics, minigames (Casino), inventory (Cosmetics/Skins), and decision buttons.
+## 🏗 System Architecture
 
-## 🛠 Feature Phases Implemented
+This is a **Multi-Screen Local/Web Multiplayer Game** powered by **Node.js, Express, Socket.IO, and Three.js**.
+There are two main entry points for the client:
+1. **Host-Screen (TV/PC/Tablet) - `host.html` & `board3D.js`**
+   - Renders the 3D game board, character models (`.glb`), the spinning wheel, and handles animations.
+   - Strictly a **visual representation**. It does NOT make game logic decisions.
+2. **Smartphone-Controllers - `index.html` & `controller.js`**
+   - The UI for players to spin the wheel, make decisions, access the shop (Cosmetics), and play Casino Minigames.
+   - Interacts heavily with `server.js` via WebSocket events.
 
-### Phase 2 & 3: 3D Asset Pipeline, Cases & Jahudi Coins
-- **Jahudi Coins & Cases:** We have a secondary currency (`jahudiCoins`) for cosmetics, strictly without gameplay advantages.
-- **Loot Boxes:** Managed strictly server-side (to prevent client-side spoofing).
-- **Inventory System:** `board3D.js` dynamically loads `.glb` outfits/skins based on player selections.
+## 🛠 Backend & Game Logic (`server.js` & `src/`)
+
+**Golden Rule:** The server is the absolute source of truth. The client must never send raw monetary amounts to adjust balances.
+
+### Core Modules:
+- `server.js`: Web server setup, Socket.IO event mapping, global state persistence.
+- `src/game/GameState.js`: Turn management, board positions, player loop.
+- `src/minigames/MiniGameManager.js`: Handles all Casino Minigames (Blackjack, Chicken) independent of `GameState` to prevent state pollution.
+
+## 🎯 Completed Feature Phases
+
+### Phase 1: Core Board & Multiplayer
+- Board generation, 5 distinct biomes (Campus, Metropolis, Suburbia, Casino, Beach).
+- Physical 3D Swipe-Wheel synchronizing between Mobile and Host.
+- 45° dynamic chase camera.
+
+### Phase 2 & 3: 3D Assets, Cases & Jahudi Coins
+- **Jahudi Coins:** Secondary currency earned in-game, strictly used for cosmetics (no pay-to-win).
+- **Cases:** Players buy cases. Server randomly assigns a drop tier (Common, Rare, Epic, Legendary).
+- **Inventory:** Dynamic loading of `.glb` models based on equipped items.
 
 ### Phase 4: Life Stats & Job System
-- **Stats:** Family Stat was completely removed. Relevant stats are Happiness, Knowledge, and Investments.
-- **Dynamic Salaries:** Base salaries are gone. Entering a job calculates salary dynamically based on the player's `Knowledge` stat.
-- **Hard Salary Cap:** Server strictly enforces a maximum salary of **300.000 €** on all career advancements and paydays.
-- **Job Reroll:** Players can gamble ±50k to reroll their jobs directly from the mobile controller.
+- **Stats Used:** Happiness, Knowledge, Investments. (Family Stat has been **completely removed**).
+- **Dynamic Salaries:** Salary depends purely on the `Knowledge` stat. No static base salaries!
+- **Hard Salary Cap:** A strict maximum of **300.000 €** is enforced by the server on any payday or job change.
+- **Job Reroll:** Players can spend 50k to reroll their job randomly.
 
 ### Phase 5: Investments & Casino
-- **Investments:** Separated from standard cash. Handled completely via server-side events.
+- **Investments:** Assets (Crypto, Real Estate, Stocks) are decoupled from cash.
 - **Casino Minigames (Blackjack, Chicken):**
-  - Managed by `src/minigames/MiniGameManager.js` to decouple gambling logic from core `GameState.js`.
-  - UI bets are fixed percentages (`1%`, `10%`, `30%`, `100%`). The client only sends the percentage; the server calculates the actual cash amount.
-  - **No Softlocks (The Loan System):** If a player drops below $0, the system automatically injects 50k loans until they are solvent again. These loans are saved under the hood and deducted rigorously from the final score, allowing players to go massively into the negative.
+  - Uses fixed percentage buttons (`1%`, `10%`, `30%`, `100%`) in the UI. Client sends the percentage string, server calculates the dollar amount.
+  - **Loan System (Anti-Softlock):** If a player drops below $0 (e.g. going all-in and losing), the server automatically grants 50k loans until solvent again. These loans accumulate as debt and are subtracted from the final score.
 
-## 🗂 File Structure
-- `server.js`: The central Socket.IO hub. Always validate financial transactions (salary, casino) here.
-- `src/game/GameState.js`: Core lobby and turn management.
-- `src/minigames/MiniGameManager.js`: Handlers for all Casino/Minigame actions (Chicken, Blackjack).
-- `public/js/board3D.js`: Three.js Host rendering.
-- `public/js/controller.js`: Mobile client logic.
-- `public/index.html`: Mobile client UI.
-- `src/data/*.json`: Static data (Careers, Decisions, Cases, Cosmetics, Characters).
+## 🚀 AI Agent Directives (How to work here)
 
-## 🚀 Future Development (Next Steps)
-When continuing development, ensure:
-1. **Maker-Checker-Fixer Workflow:** Keep iterative validation for complex game loops.
-2. **Server Authority:** Never trust the client with raw monetary values (e.g. Casino bets only send percentages).
-3. **No Overbuilding:** Stay within the bounds of the current Phase context unless explicitly told otherwise.
+1. **Maker-Checker-Fixer:** Always follow this pattern for complex features. Build, test the edge cases, fix before finalizing.
+2. **File Modularity:** Keep `server.js` clean. Use `src/minigames/` or `src/game/` for encapsulated logic.
+3. **No Unprompted Feature Creep:** Only build what Can explicitly asks for.
+4. **Follow the Tone:** Use a casual, direct, 'denglisch' tone when communicating with Can, as defined in `GEMINI.md`.
+
